@@ -28,9 +28,95 @@ _calculatorWindows calcWindows = {
     .scientific = NULL
 };
 
-
 _calculatorState calcState;
+
+calcState.modeText[STANDARD_MODE] = "Standard";
+calcState.modeText[SCIENTIFIC_MODE] = "Scientific";
+
 _calculatorMode calcMode = STANDARD_MODE;
+
+//Stores if a button is visible or not by turning on turning the highest bit of that button on or off.
+//To toggle them, XOR the button code against the mask 0x8000.
+WORD windowStateTable[] = {
+    0x00 | IDC_EDIT_RESULT,        // Standard Mode | Result display
+    0x80 | IDC_EDIT_EXPR,          // Scientific Mode | Expression display
+
+    // Memory buttons (both modes)
+    0x09 | IDC_BUTTON_MC,          // Both Modes | Memory Clear
+    0x09 | IDC_BUTTON_MR,          // Both Modes | Memory Recall
+    0x09 | IDC_BUTTON_MS,          // Both Modes | Memory Store
+    0x09 | IDC_BUTTON_MPLUS,       // Both Modes | Memory Add
+    0x80 | IDC_BUTTON_MSUB,        // Scientific Mode | Memory Subtract
+
+    // Standard mode buttons
+    0x00 | IDC_BUTTON_BACK,        // Standard Mode | Backspace
+    0x00 | IDC_BUTTON_CE,          // Standard Mode | Clear Entry
+    0x00 | IDC_BUTTON_C,           // Standard Mode | Clear All
+
+    0x00 | IDC_BUTTON_7,           // Standard Mode | Digit 7
+    0x00 | IDC_BUTTON_8,           // Standard Mode | Digit 8
+    0x00 | IDC_BUTTON_9,           // Standard Mode | Digit 9
+    0x00 | IDC_BUTTON_DIV,         // Standard Mode | Division
+
+    0x00 | IDC_BUTTON_4,           // Standard Mode | Digit 4
+    0x00 | IDC_BUTTON_5,           // Standard Mode | Digit 5
+    0x00 | IDC_BUTTON_6,           // Standard Mode | Digit 6
+    0x00 | IDC_BUTTON_MUL,         // Standard Mode | Multiplication
+
+    0x00 | IDC_BUTTON_1,           // Standard Mode | Digit 1
+    0x00 | IDC_BUTTON_2,           // Standard Mode | Digit 2
+    0x00 | IDC_BUTTON_3,           // Standard Mode | Digit 3
+    0x00 | IDC_BUTTON_SUB,         // Standard Mode | Subtraction
+
+    0x00 | IDC_BUTTON_0,           // Standard Mode | Digit 0
+    0x00 | IDC_BUTTON_DOT,         // Standard Mode | Decimal point
+    0x00 | IDC_BUTTON_EQ,          // Standard Mode | Equals
+    0x00 | IDC_BUTTON_ADD,         // Standard Mode | Addition
+
+    0x00 | IDC_BUTTON_SQRT,        // Standard Mode | Square root
+    0x00 | IDC_BUTTON_PERC,        // Standard Mode | Percentage
+    0x00 | IDC_BUTTON_INV,         // Standard Mode | Reciprocal (1/x)
+    0x00 | IDC_BUTTON_NEG,         // Standard Mode | Negate (+/-)
+
+    // Scientific mode buttons
+    0x80 | IDC_BUTTON_SIN,         // Scientific Mode | Sine
+    0x80 | IDC_BUTTON_COS,         // Scientific Mode | Cosine
+    0x80 | IDC_BUTTON_TAN,         // Scientific Mode | Tangent
+
+    0x80 | IDC_BUTTON_ASIN,        // Scientific Mode | Arc sine
+    0x80 | IDC_BUTTON_ACOS,        // Scientific Mode | Arc cosine
+    0x80 | IDC_BUTTON_ATAN,        // Scientific Mode | Arc tangent
+
+    0x80 | IDC_BUTTON_LOG,         // Scientific Mode | Logarithm (base 10)
+    0x80 | IDC_BUTTON_LN,          // Scientific Mode | Natural logarithm
+
+    0x80 | IDC_BUTTON_EXP,         // Scientific Mode | Exponential (e^x)
+    0x80 | IDC_BUTTON_XY,          // Scientific Mode | x to the power of y
+
+    0x80 | IDC_BUTTON_PI,          // Scientific Mode | Pi constant
+
+    0x80 | IDC_BUTTON_LPAR,        // Scientific Mode | Left parenthesis
+    0x80 | IDC_BUTTON_RPAR,        // Scientific Mode | Right parenthesis
+
+    0x80 | IDC_BUTTON_SQR,         // Scientific Mode | x squared
+    0x80 | IDC_BUTTON_CUBE,        // Scientific Mode | x cubed
+    0x80 | IDC_BUTTON_FACT,        // Scientific Mode | Factorial
+
+    0x80 | IDC_RADIO_DEG,          // Scientific Mode | Degrees
+    0x80 | IDC_RADIO_RAD,          // Scientific Mode | Radians
+    0x80 | IDC_RADIO_GRAD,         // Scientific Mode | Gradians
+
+    0x80 | IDC_RADIO_HEX,          // Scientific Mode | Hexadecimal
+    0x80 | IDC_RADIO_DEC,          // Scientific Mode | Decimal
+    0x80 | IDC_RADIO_OCT,          // Scientific Mode | Octal
+    0x80 | IDC_RADIO_BIN,          // Scientific Mode | Binary
+
+    0x80 | IDC_BUTTON_AND,         // Scientific Mode | Bitwise AND
+    0x80 | IDC_BUTTON_OR,          // Scientific Mode | Bitwise OR
+    0x80 | IDC_BUTTON_XOR,         // Scientific Mode | Bitwise XOR
+    0x80 | IDC_BUTTON_NOT,         // Scientific Mode | Bitwise NOT
+    0x80 | IDC_BUTTON_LSH,         // Scientific Mode | Left shift
+};
 
 void initCalculatorState(void)
 {
@@ -142,7 +228,7 @@ void initColors(int forceUpdate)
     HDC hDC;
     HBRUSH hBackgroundBrush;
     HWND hChildWindow;
-    LPCSTR* pModeText;
+    LPCSTR* mode_text_ptr;
     WORD* pWindowState;
     BOOL backgroundColorChanged;
     char backgroundColorString[20];
@@ -288,9 +374,10 @@ void initColors(int forceUpdate)
             }
 
             // Update current mode text
-            pModeText = &scientificModeText;
+            mode_text_ptr = calcState.mode[STANDARD_MODE];
+
             if ((memoryRegister2 & 0x7fffffff | memoryRegister1) == 0) {
-                pModeText = &standardModeText;
+                mode_text_ptr = calcState.mode[SCIENTIFIC_MODE];
             }
             SetDlgItemTextA(calcWindows.main, calcState.mode + 401, (LPCSTR)pModeText);
         }

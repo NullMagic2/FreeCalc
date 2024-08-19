@@ -22,7 +22,7 @@
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{c03a0845-8b1f-412b-ae6e-710f1fe77c1f}</ProjectGuid>
-    <RootNamespace>W95Calc</RootNamespace>
+    <RootNamespace>FreeCalc</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <ProjectName>FreeCalc</ProjectName>
   </PropertyGroup>

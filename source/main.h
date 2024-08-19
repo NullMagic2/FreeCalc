@@ -38,21 +38,27 @@ typedef unsigned int uint;
 #define KEY_RANGE_START   0x56
 #define KEY_RANGE_END     0x5f
 
-#define INVALID_BUTTON    0xffffffff
+#define INVALID_BUTTON    0xffffffff  // Represents an invalid or unassigned button ID, using max DWORD value
+#define HELP_CONTEXT_DATA 0x40c128    // Pointer to help context data structure, likely used with WinHelp API
 
-#define HELP_CONTEXT_DATA 0x40c128
-#define STAT_BUTTON_ID    0x67
-#define STAT_ALT_BUTTON_ID 0x8c
-#define MEMORY_BUTTON_START 0x40
-#define MEMORY_BUTTON_END 0x47
-#define MEMORY_BUTTON_DEFAULT 0x41
-#define DIGIT_BUTTON_START 0x2f
-#define DIGIT_BUTTON_END  0x3a
-#define DIGIT_BUTTON_DEFAULT 0x30
-#define MAX_COMMAND_ID    0x79
-#define ID_STAT_BUTTON    100
-#define ID_STAT_BUTTON_ALT 101
-#define ID_EDIT_PASTE     102
+#define STAT_BUTTON_ID    0x67        // ID for the statistics button in standard mode (103 in decimal)
+#define STAT_ALT_BUTTON_ID 0x8c       // Alternate ID for the statistics button in scientific mode (140 in decimal)
+
+#define MEMORY_BUTTON_START 0x40      // Start of memory button ID range (64 in decimal)
+#define MEMORY_BUTTON_END 0x47        // End of memory button ID range (71 in decimal)
+#define MEMORY_BUTTON_DEFAULT 0x41    // Default memory button ID, likely "Memory Recall" (65 in decimal)
+
+#define DIGIT_BUTTON_START 0x2f       // Start of digit button ID range (47 in decimal)
+#define DIGIT_BUTTON_END  0x3a        // End of digit button ID range (58 in decimal)
+#define DIGIT_BUTTON_DEFAULT 0x30     // Default digit button ID, likely "0" (48 in decimal)
+
+#define MAX_COMMAND_ID    0x79        // Maximum command ID (121 in decimal) for calculator buttons (main.c)
+                                      // Used to validate input in WM_COMMAND processing
+                                      // Allows treating WM_COMMAND and WM_CHAR messages similarly
+
+#define ID_STAT_BUTTON    100         // Resource ID for statistics button, used in dialog resources
+#define ID_STAT_BUTTON_ALT 101        // Alternate resource ID for statistics button, used in dialog resources
+#define ID_EDIT_PASTE     102         // Resource ID for paste command in edit menu, used in menu resources
 
 #define SYSTEM_CODE_PAGE -3
 #define DEFAULT_BACKGROUND_COLOR "C0C0C0"
@@ -72,6 +78,92 @@ typedef unsigned int uint;
 
 #define BUTTON_HORIZONTAL_SPACING 2
 #define BUTTON_VERTICAL_SPACING 2
+
+
+//Calculator buttons – standard mode
+// Standard Calculator Button IDs
+#define IDC_BUTTON_MC     0x80  // Memory Clear
+#define IDC_BUTTON_MR     0x81  // Memory Recall
+#define IDC_BUTTON_MS     0x82  // Memory Store
+#define IDC_BUTTON_MPLUS  0x83  // Memory Add
+
+#define IDC_BUTTON_BACK   0x84  // Backspace
+#define IDC_BUTTON_CE     0x85  // Clear Entry
+#define IDC_BUTTON_C      0x86  // Clear All
+
+#define IDC_BUTTON_7      0x87  // Digit 7
+#define IDC_BUTTON_8      0x88  // Digit 8
+#define IDC_BUTTON_9      0x89  // Digit 9
+#define IDC_BUTTON_DIV    0x8A  // Division
+
+#define IDC_BUTTON_4      0x8B  // Digit 4
+#define IDC_BUTTON_5      0x8C  // Digit 5
+#define IDC_BUTTON_6      0x8D  // Digit 6
+#define IDC_BUTTON_MUL    0x8E  // Multiplication
+
+#define IDC_BUTTON_1      0x8F  // Digit 1
+#define IDC_BUTTON_2      0x90  // Digit 2
+#define IDC_BUTTON_3      0x91  // Digit 3
+#define IDC_BUTTON_SUB    0x92  // Subtraction
+
+#define IDC_BUTTON_0      0x93  // Digit 0
+#define IDC_BUTTON_DOT    0x94  // Decimal point
+#define IDC_BUTTON_EQ     0x95  // Equals
+#define IDC_BUTTON_ADD    0x96  // Addition
+
+#define IDC_BUTTON_SQRT   0x97  // Square root
+#define IDC_BUTTON_PERC   0x98  // Percentage
+#define IDC_BUTTON_INV    0x99  // Reciprocal (1/x)
+#define IDC_BUTTON_NEG    0x9A  // Negate (+/-)
+
+// Scientific Calculator Additional Button IDs
+#define IDC_BUTTON_SIN    0x9C  // Sine
+#define IDC_BUTTON_COS    0x9D  // Cosine
+#define IDC_BUTTON_TAN    0x9E  // Tangent
+
+#define IDC_BUTTON_ASIN   0x9F  // Arc sine
+#define IDC_BUTTON_ACOS   0xA0  // Arc cosine
+#define IDC_BUTTON_ATAN   0xA1  // Arc tangent
+
+#define IDC_BUTTON_LOG    0xA2  // Logarithm (base 10)
+#define IDC_BUTTON_LN     0xA3  // Natural logarithm
+
+#define IDC_BUTTON_EXP    0xA4  // Exponential (e^x)
+#define IDC_BUTTON_XY     0xA5  // x to the power of y
+
+#define IDC_BUTTON_PI     0xA6  // Pi constant
+
+#define IDC_BUTTON_LPAR   0xA7  // Left parenthesis
+#define IDC_BUTTON_RPAR   0xA8  // Right parenthesis
+
+#define IDC_BUTTON_SQR    0xA9  // x squared
+#define IDC_BUTTON_CUBE   0xAA  // x cubed
+#define IDC_BUTTON_FACT   0xAB  // Factorial
+
+#define IDC_BUTTON_MSUB   0xAC  // Memory Subtract
+
+#define IDC_RADIO_DEG     0xAD  // Degrees
+#define IDC_RADIO_RAD     0xAE  // Radians
+#define IDC_RADIO_GRAD    0xAF  // Gradians
+
+#define IDC_RADIO_HEX     0xB0  // Hexadecimal
+#define IDC_RADIO_DEC     0xB1  // Decimal
+#define IDC_RADIO_OCT     0xB2  // Octal
+#define IDC_RADIO_BIN     0xB3  // Binary
+
+#define IDC_BUTTON_AND    0xB8  // Bitwise AND
+#define IDC_BUTTON_OR     0xB9  // Bitwise OR
+#define IDC_BUTTON_XOR    0xBA  // Bitwise XOR
+#define IDC_BUTTON_NOT    0xBB  // Bitwise NOT
+#define IDC_BUTTON_LSH    0xBC  // Left shift
+
+// Display controls
+#define IDC_EDIT_RESULT   0x9B  // Result display
+#define IDC_EDIT_EXPR     0xBE  // Expression display
+
+
+// Display control
+#define IDC_EDIT_RESULT  0x9B
 
 //Assumes English locale
 #define DEFAULT_DECIMAL_SEPARATOR '.'
@@ -127,6 +219,7 @@ typedef struct {
     DWORD pressedButton;
     HWND windowHandle;
     _calculatorMode mode;
+    const char* modeText[2];
     DWORD currentValueHighPart;
     DWORD accumulatedValue;
     DWORD lastValue;
