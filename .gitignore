@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/W95_Calc/W95_Calc.ico
+/W95_Calc/W95_Calc.rc
