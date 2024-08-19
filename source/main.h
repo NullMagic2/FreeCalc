@@ -35,6 +35,9 @@
 typedef unsigned short ushort;
 typedef unsigned int uint;
 
+//Do-nothing instruction, as a placeholder.
+#define pass (void)0
+
 #define KEY_RANGE_START   0x56
 #define KEY_RANGE_END     0x5f
 
@@ -225,6 +228,7 @@ typedef struct {
     DWORD currentValueHighPart;
     DWORD accumulatedValue;
     DWORD lastValue;
+    DWORD memoryRegister[2];
     int errorState;
     UINT currentKeyPressed;
     BOOL isHighContrastMode;

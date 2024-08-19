@@ -138,6 +138,8 @@ void initCalculatorState(void)
     calcState.errorState = 0;
     calcState.currentKeyPressed = 0;
     calcState.decimalSeparator = DEFAULT_DECIMAL_SEPARATOR;
+    calcState.memoryRegister[0] = 0;
+    calcState.memoryRegister[1] = 0;
 
     updateDecimalSeparator();
 
@@ -370,10 +372,11 @@ void initColors(int forceUpdate)
 
             // Set up scientific mode if necessary
             if (calcState.mode != SCIENTIFIC_MODE) {
-                setupCalculatorMode(123);
+                pass;
+                //setupCalculatorMode(123);
             }
 
-            if ((memoryRegister2 & 0x7fffffff | memoryRegister1) == 0) {
+            if ((calcState.memoryRegister[1] & 0x7fffffff | calcState.memoryRegister[0]) == 0) {
                 currentModeText = calcState.modeText[calcState.mode];
             }
 
