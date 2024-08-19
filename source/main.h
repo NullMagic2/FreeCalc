@@ -71,6 +71,8 @@ typedef unsigned int uint;
 //Standard mode
 #define STANDARD_CALC_ROWS 6
 #define STANDARD_CALC_COLS 5
+#define IDC_TEXT_STANDARD_MODE  0x19D  // Adjust this value based on your actual resource definitions
+#define IDC_TEXT_SCIENTIFIC_MODE 0x19E // Adjust this value based on your actual resource definitions
 
 //Padding and spacing (in pixels)
 #define HORIZONTAL_MARGIN 2

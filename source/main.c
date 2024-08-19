@@ -29,10 +29,6 @@ _calculatorWindows calcWindows = {
 };
 
 _calculatorState calcState;
-
-calcState.modeText[STANDARD_MODE] = "Standard";
-calcState.modeText[SCIENTIFIC_MODE] = "Scientific";
-
 _calculatorMode calcMode = STANDARD_MODE;
 
 //Stores if a button is visible or not by turning on turning the highest bit of that button on or off.
@@ -123,6 +119,8 @@ void initCalculatorState(void)
     // Initialize string constants
     calcState.className = "CalculatorClass";
     calcState.registryKey = "SciCalc";
+    calcState.modeText[STANDARD_MODE] = "Standard";
+    calcState.modeText[SCIENTIFIC_MODE] = "Scientific";
 
     // Set default help file path
     strcpy_s(calcState.helpFilePath, MAX_PATH, "calc.hlp");
@@ -236,6 +234,8 @@ void initColors(int forceUpdate)
     int standardModeWidth, standardModeHeight;
     int scientificModeWidth, scientificModeHeight;
     static int cxChar, cyChar;
+    const char* currentModeText = calcState.modeText[calcState.mode];
+    int modeTextID;
     int totalWidth; //Total width of the calculator
 
     int VERTICAL_OFFSET = 0;
@@ -373,13 +373,18 @@ void initColors(int forceUpdate)
                 setupCalculatorMode(123);
             }
 
-            // Update current mode text
-            mode_text_ptr = calcState.mode[STANDARD_MODE];
-
             if ((memoryRegister2 & 0x7fffffff | memoryRegister1) == 0) {
-                mode_text_ptr = calcState.mode[SCIENTIFIC_MODE];
+                currentModeText = calcState.modeText[calcState.mode];
             }
-            SetDlgItemTextA(calcWindows.main, calcState.mode + 401, (LPCSTR)pModeText);
+
+            if (calcState.mode == STANDARD_MODE) {
+                modeTextID = IDC_TEXT_STANDARD_MODE;
+            }
+            else {
+                modeTextID = IDC_TEXT_SCIENTIFIC_MODE;
+            }
+
+            SetDlgItemTextA(calcWindows.main, modeTextID, currentModeText);
         }
     }
 }
