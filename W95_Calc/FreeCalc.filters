@@ -20,7 +20,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="W95_Calc.rc">
+    <ResourceCompile Include="FreeCalc.rc">
       <Filter>Arquivos de Recurso</Filter>
     </ResourceCompile>
   </ItemGroup>
@@ -28,7 +28,7 @@
     <Image Include="small.ico">
       <Filter>Arquivos de Recurso</Filter>
     </Image>
-    <Image Include="W95_Calc.ico">
+    <Image Include="FreeCalc.ico">
       <Filter>Arquivos de Recurso</Filter>
     </Image>
   </ItemGroup>
