@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------------
-   main.c --  Main program module for the Windows Calculator reconstruction.
+   main.c --  Main program module for the Windows Calculator (reconstructed code).
 
                This module handles the core initialization of the application,
                including:
@@ -394,16 +394,27 @@ void initColors(int forceUpdate)
 
 void handleCalculationError(int errorCode)
 {
-    const char* errorMessage = getErrorMessage(errorCode);
-    int errorDisplayId = getErrorDisplayId(calcMode);
-
-    SetDlgItemTextA(mainCalculatorWindow, errorDisplayId, errorMessage);
-    errorState = ERROR_STATE_ACTIVE;
-    lastErrorCode = errorCode;
-
-    if (calculatorMode == CALC_MODE_STANDARD) {
-        setCalculatorButtonsState(BUTTONS_DISABLED);
+    LPCSTR errorMessage = getStatusCode(errorCode);
+    if (errorMessage != NULL) {
+        MessageBoxA(NULL, errorMessage, "Runtime Error", MB_ICONERROR);
     }
+}
+
+// This function retrieves a status message corresponding to a given status code.
+// It searches through the STATUS_MESSAGE_TABLE and returns the associated message.
+// If no matching status code is found, it returns NULL.
+const char* getStatusCode(int statusCode)
+{
+    // Iterate through the STATUS_MESSAGE_TABLE
+    for (int i = 0; i < (STATUS_MESSAGE_TABLE_END - STATUS_MESSAGE_TABLE); i++) {
+        // Check if the current table entry matches the given status code
+        if (STATUS_MESSAGE_TABLE[i].status == statusCode) {
+            // If a match is found, return the corresponding message
+            return STATUS_MESSAGE_TABLE[i].message;
+        }
+    }
+    // If no matching status code is found, return NULL
+    return NULL;
 }
 
 void refreshInterface(void)
@@ -427,12 +438,12 @@ void refreshInterface(void)
     ShowCursor(TRUE);
 
     // Begin painting
-    hdc = BeginPaint(mainCalculatorWindow, &ps);
+    hdc = BeginPaint(calcState.windowHandle, &ps);
     oldFont = SelectObject(hdc, GetStockObject(DEFAULT_GUI_FONT));
     oldBrush = SelectObject(hdc, GetSysColorBrush(COLOR_BTNFACE));
 
     // Draw calculator frame
-    GetClientRect(mainCalculatorWindow, &clientRect);
+    GetClientRect(calcState.windowHandle, &clientRect);
     edgeRect = (RECT){ 1, 5, clientRect.right - 1, 8 };
     DrawEdge(hdc, &edgeRect, EDGE_SUNKEN, BF_RECT);
 

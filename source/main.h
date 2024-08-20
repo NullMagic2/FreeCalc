@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------------
-    main.h --  Header file for the Windows Calculator reconstruction project.
+    main.h --  Header file for the Windows Calculator reconstruction project (reconstructed code).
 
                This header defines common data types, structures, constants,
                and function prototypes used throughout the application.
@@ -84,6 +84,38 @@ typedef unsigned int uint;
 #define BUTTON_HORIZONTAL_SPACING 2
 #define BUTTON_VERTICAL_SPACING 2
 
+#define ERROR_STATE_ACTIVE 1
+#define ERROR_STATE_INACTIVE 0
+
+//Calculation status codes
+#define STATUS_READY    0  // Ready to do a calculation
+#define STATUS_WORKING  1  // Working on a calculation
+#define STATUS_DONE     2  // Done with a calculation
+
+// Calculation result codes
+#define STATUS_SUCCESS                0  // Calculation completed successfully
+#define STATUS_DIVISION_BY_ZERO       1  // Cannot divide by zero
+#define STATUS_CLIPBOARD_ERROR        2  // Cannot open Clipboard
+#define STATUS_INSUFFICIENT_MEMORY    3  // Insufficient memory for data
+#define STATUS_INVALID_INPUT          4  // Invalid input for function
+#define STATUS_OVERFLOW               5  // Result is too large for display
+#define STATUS_UNDERFLOW              6  // Result is too small for display
+#define STATUS_UNDEFINED_RESULT       7  // Result of function is undefined
+
+static const struct {
+    int status;
+    const char* message;
+} STATUS_MESSAGE_TABLE[] = {
+    {STATUS_DIVISION_BY_ZERO, "Cannot divide by zero"},
+    {STATUS_CLIPBOARD_ERROR, "Cannot open Clipboard."},
+    {STATUS_INSUFFICIENT_MEMORY, "Insufficient memory for data; close one or more Windows Applications to increase available memory."},
+    {STATUS_INVALID_INPUT, "Invalid input for function"},
+    {STATUS_OVERFLOW, "Result is too large for display"},
+    {STATUS_UNDERFLOW, "Result is too small for display"},
+    {STATUS_UNDEFINED_RESULT, "Result of function is undefined"}
+};
+
+#define STATUS_MESSAGE_TABLE_END (STATUS_MESSAGE_TABLE + sizeof(STATUS_MESSAGE_TABLE)/sizeof(STATUS_MESSAGE_TABLE[0]))
 
 //Calculator buttons – standard mode
 // Standard Calculator Button IDs
@@ -253,11 +285,14 @@ void adjustMemoryAllocation(void);
 LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 DWORD configureCodePageSettings(int requestedCodePage);
 DWORD getCalculatorButton(ushort x, ushort y);
+const char* getStatusCode(int statusCode);
 void initCalculatorState(void);
 bool initInstance(HINSTANCE appInstance, int windowMode);
 void initApplicationCodePage(void);
+void initApplicationPath(void);
 void initColors(int forceUpdate);
 void initStandardStreams(void);
+void initEnvironmentVariables(void);
 ATOM registerCalcClass(HINSTANCE appInstance);
 void handleCalculationError(int errorCode);
 bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT param);
@@ -265,8 +300,7 @@ void processButtonClick(uint keypressed);
 void updateButtonState(uint buttonID, int state);
 void updateDisplay(void);
 void refreshInterface(void);
-void initApplicationPath(void);
-void initEnvironmentVariables(void);
+
 DWORD initCalculatorRuntime(int initializationFlags);
 void updateDecimalSeparator();
 
