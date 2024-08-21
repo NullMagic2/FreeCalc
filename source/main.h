@@ -35,6 +35,8 @@
 typedef unsigned short ushort;
 typedef unsigned int uint;
 
+extern int BUTTON_BASE_SIZE;
+
 //Do-nothing instruction, as a placeholder.
 #define pass (void)0
 

@@ -114,6 +114,13 @@ WORD windowStateTable[] = {
     0x80 | IDC_BUTTON_LSH,         // Scientific Mode | Left shift
 };
 
+// BUTTON_BASE_SIZE: Defines the base size for calculator buttons in pixels.
+// It's calculated by mapping dialog units to pixels using MapDialogRect.
+// The initial dialog rectangle is set to 24x18 units (right=24, bottom=18).
+// After mapping, BUTTON_BASE_SIZE is set to the resulting 'right' value.
+// This ensures consistent button sizing across different display configurations.
+int BUTTON_BASE_SIZE = 0;
+
 void initCalculatorState(void)
 {
     // Initialize string constants
@@ -207,10 +214,25 @@ bool initInstance(HINSTANCE appInstance, int windowMode)
         CW_USEDEFAULT, CW_USEDEFAULT, 240, 320,
         NULL, NULL, appInstance, NULL);
 
+    //For proper button measurement and initialization.
+    RECT windowRect;
+
     if (calcState.windowHandle == NULL)
     {
         return false;
     }
+
+    // Set up initial rectangle
+    windowRect.left = 0;
+    windowRect.top = 0;
+    windowRect.right = 24;
+    windowRect.bottom = 18;
+
+    // Map dialog units to pixels
+    MapDialogRect(calcState.windowHandle, &windowRect);
+
+    // Set the button base size
+    BUTTON_BASE_SIZE = windowRect.right;
 
     ShowWindow(calcState.windowHandle, windowMode);
     UpdateWindow(calcState.windowHandle);
@@ -423,19 +445,16 @@ void refreshInterface(void)
     RECT clientRect, buttonRect, edgeRect;
     SIZE textSize;
     HGDIOBJ oldFont, oldBrush;
-    HCURSOR oldCursor;
     COLORREF backgroundColor, textColor;
     HDC hdc;
-    int i, row, col, buttonIndex;
+    int row, col, buttonIndex;
     int buttonWidth, buttonHeight, buttonSpacing;
     int textLength, textX, textY;
     char* buttonText;
 
-    // Set up colors and cursor
+    // Set up colors
     backgroundColor = GetSysColor(COLOR_BTNFACE);
     textColor = GetSysColor(COLOR_BTNTEXT);
-    oldCursor = SetCursor(LoadCursorA(NULL, IDC_ARROW));
-    ShowCursor(TRUE);
 
     // Begin painting
     hdc = BeginPaint(calcState.windowHandle, &ps);
@@ -448,7 +467,7 @@ void refreshInterface(void)
     DrawEdge(hdc, &edgeRect, EDGE_SUNKEN, BF_RECT);
 
     // Set up button dimensions
-    buttonWidth = BUTTON_BASE_SIZE + (calcMode == SCIENTIFIC_MODE ? DAT_0040c00c : 0);
+    buttonWidth = BUTTON_BASE_SIZE + (calcState.mode == SCIENTIFIC_MODE ? SCIENTIFIC_BUTTON_EXTRA_WIDTH : 0);
     buttonHeight = BUTTON_BASE_SIZE;
     buttonSpacing = 4;
 
@@ -457,8 +476,7 @@ void refreshInterface(void)
     buttonIndex = 0;
     for (row = 0; row < CALC_ROWS; row++) {
         for (col = 0; col < CALC_COLS; col++) {
-            if (isButtonVisible(buttonIndex, calcMode)) {
-                // Calculate button position
+            if (isButtonVisible(buttonIndex, calcState.mode)) {
                 int x = col * (buttonWidth + buttonSpacing) + HORIZONTAL_MARGIN;
                 int y = row * (buttonHeight + buttonSpacing) + VERTICAL_MARGIN;
 
@@ -473,7 +491,7 @@ void refreshInterface(void)
                 textX = x + (buttonWidth - textSize.cx) / 2;
                 textY = y + (buttonHeight - textSize.cy) / 2;
 
-                if (DAT_0040c064) {  // High contrast mode
+                if (isHighContrastMode()) {
                     SetTextColor(hdc, getElementColor(buttonIndex, backgroundColor, textColor));
                 }
                 TextOutA(hdc, textX, textY, buttonText, textLength);
@@ -485,9 +503,7 @@ void refreshInterface(void)
     // Clean up
     SelectObject(hdc, oldFont);
     SelectObject(hdc, oldBrush);
-    EndPaint(mainCalculatorWindow, &ps);
-    SetCursor(oldCursor);
-    ShowCursor(FALSE);
+    EndPaint(calcState.windowHandle, &ps);
 }
 
 void processButtonClick(uint keyPressed)
