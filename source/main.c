@@ -439,22 +439,60 @@ const char* getStatusCode(int statusCode)
     return NULL;
 }
 
+/*
+ * refreshInterface
+ *
+ * This function is responsible for redrawing the entire calculator interface.
+ * It handles both standard and scientific modes, adjusting the layout accordingly.
+ *
+ * The function performs the following tasks:
+ * 1. Determines the current calculator mode and sets appropriate dimensions
+ * 2. Sets up colors and cursor for drawing
+ * 3. Draws the calculator frame
+ * 4. Calculates button dimensions based on the current mode
+ * 5. Iterates through all buttons, drawing each visible button and its text
+ * 6. Handles high contrast mode for accessibility
+ *
+ * This function is typically called when the calculator needs a full redraw,
+ * such as after mode switches, resizing, or when the window is uncovered.
+ *
+ * No parameters.
+ * No return value.
+ */
 void refreshInterface(void)
 {
     PAINTSTRUCT ps;
     RECT clientRect, buttonRect, edgeRect;
     SIZE textSize;
     HGDIOBJ oldFont, oldBrush;
+    HCURSOR oldCursor;
     COLORREF backgroundColor, textColor;
     HDC hdc;
     int row, col, buttonIndex;
     int buttonWidth, buttonHeight, buttonSpacing;
     int textLength, textX, textY;
     char* buttonText;
+    int calcRows, calcCols;
+    BOOL isHighContrastMode;
 
-    // Set up colors
+    // Check for high contrast mode using SystemParametersInfo
+    SystemParametersInfo(SPI_GETHIGHCONTRAST, 0, &isHighContrastMode, 0);
+
+    // Determine calculator dimensions based on mode
+    if (calcState.mode == SCIENTIFIC_MODE) {
+        calcRows = SCIENTIFIC_CALC_ROWS;
+        calcCols = SCIENTIFIC_CALC_COLS;
+    }
+    else {
+        calcRows = STANDARD_CALC_ROWS;
+        calcCols = STANDARD_CALC_COLS;
+    }
+
+    // Set up colors and cursor
     backgroundColor = GetSysColor(COLOR_BTNFACE);
     textColor = GetSysColor(COLOR_BTNTEXT);
+    oldCursor = SetCursor(LoadCursorA(NULL, IDC_ARROW));
+    ShowCursor(TRUE);
 
     // Begin painting
     hdc = BeginPaint(calcState.windowHandle, &ps);
@@ -474,8 +512,8 @@ void refreshInterface(void)
     // Draw buttons
     SetBkMode(hdc, TRANSPARENT);
     buttonIndex = 0;
-    for (row = 0; row < CALC_ROWS; row++) {
-        for (col = 0; col < CALC_COLS; col++) {
+    for (row = 0; row < calcRows; row++) {
+        for (col = 0; col < calcCols; col++) {
             if (isButtonVisible(buttonIndex, calcState.mode)) {
                 int x = col * (buttonWidth + buttonSpacing) + HORIZONTAL_MARGIN;
                 int y = row * (buttonHeight + buttonSpacing) + VERTICAL_MARGIN;
@@ -491,7 +529,7 @@ void refreshInterface(void)
                 textX = x + (buttonWidth - textSize.cx) / 2;
                 textY = y + (buttonHeight - textSize.cy) / 2;
 
-                if (isHighContrastMode()) {
+                if (isHighContrastMode) {
                     SetTextColor(hdc, getElementColor(buttonIndex, backgroundColor, textColor));
                 }
                 TextOutA(hdc, textX, textY, buttonText, textLength);
@@ -504,6 +542,8 @@ void refreshInterface(void)
     SelectObject(hdc, oldFont);
     SelectObject(hdc, oldBrush);
     EndPaint(calcState.windowHandle, &ps);
+    SetCursor(oldCursor);
+    ShowCursor(FALSE);
 }
 
 void processButtonClick(uint keyPressed)

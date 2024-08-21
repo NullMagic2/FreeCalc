@@ -57,6 +57,8 @@ extern int BUTTON_BASE_SIZE;
 #define DIGIT_BUTTON_END  0x3a        // End of digit button ID range (58 in decimal)
 #define DIGIT_BUTTON_DEFAULT 0x30     // Default digit button ID, likely "0" (48 in decimal)
 
+#define HIGH_CONTRAST_MODE_FLAG 0x40c064 // Flag that checks for high contrast mode flag.
+
 #define MAX_COMMAND_ID    0x79        // Maximum command ID (121 in decimal) for calculator buttons (main.c)
                                       // Used to validate input in WM_COMMAND processing
                                       // Allows treating WM_COMMAND and WM_CHAR messages similarly
@@ -72,6 +74,7 @@ extern int BUTTON_BASE_SIZE;
 //Scientific mode
 #define SCIENTIFIC_CALC_ROWS 7
 #define SCIENTIFIC_CALC_COLS 10
+#define SCIENTIFIC_BUTTON_EXTRA_WIDTH 8
 
 //Standard mode
 #define STANDARD_CALC_ROWS 6
