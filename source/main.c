@@ -246,7 +246,7 @@ void initColors(int forceUpdate)
     DWORD backgroundColor;
     BOOL isIconic;
     int windowHeight, windowWidth;
-    HMENU hMenu;
+    HMENU menuHandle;
     HDC hDC;
     HBRUSH hBackgroundBrush;
     HWND hChildWindow;
@@ -370,10 +370,10 @@ void initColors(int forceUpdate)
             SetWindowPos(calcWindows.main, NULL, 0, 0, windowWidth, windowHeight, SWP_NOMOVE | SWP_NOZORDER);
 
             // Update menu to reflect current mode
-            hMenu = GetMenu(calcWindows.main);
-            hMenu = GetSubMenu(hMenu, 1);
-            CheckMenuItem(hMenu, calcState.mode, MF_BYCOMMAND | MF_CHECKED);
-            CheckMenuItem(hMenu, 1 - calcState.mode, MF_BYCOMMAND | MF_UNCHECKED);
+            menuHandle = GetMenu(calcWindows.main);
+            menuHandle = GetSubMenu(menuHandle, 1);
+            CheckMenuItem(menuHandle, calcState.mode, MF_BYCOMMAND | MF_CHECKED);
+            CheckMenuItem(menuHandle, 1 - calcState.mode, MF_BYCOMMAND | MF_UNCHECKED);
 
             // Fill window background with new color
             SetRect(&windowRect, 0, 0, standardModeWidth, standardModeHeight);
@@ -422,9 +422,23 @@ void handleCalculationError(int errorCode)
     }
 }
 
-// This function retrieves a status message corresponding to a given status code.
-// It searches through the STATUS_MESSAGE_TABLE and returns the associated message.
-// If no matching status code is found, it returns NULL.
+/*
+ * getStatusCode
+ *
+ * This function retrieves a status message corresponding to a given status code.
+ * It searches through the STATUS_MESSAGE_TABLE to find a matching status code.
+ *
+ * The function performs the following tasks:
+ * 1. Iterates through the STATUS_MESSAGE_TABLE
+ * 2. Compares each table entry's status code with the given statusCode
+ * 3. Returns the corresponding message if a match is found
+ * 4. Returns NULL if no matching status code is found
+ *
+ * The STATUS_MESSAGE_TABLE is a global array containing status codes and their
+ * corresponding messages. Each entry in the table consists of two elements:
+ * the status code and a pointer to the message string.
+ *
+ */
 const char* getStatusCode(int statusCode)
 {
     // Iterate through the STATUS_MESSAGE_TABLE
@@ -641,17 +655,17 @@ bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
     const UINT TRACK_POPUP_FLAGS = TPM_RETURNCMD | TPM_RIGHTBUTTON;
 
     // Carrega o menu de contexto dos recursos da aplicação
-    HMENU hMenu = LoadMenuA(hInstance, MAKEINTRESOURCE(CONTEXT_MENU_RESOURCE_ID));
-    if (hMenu == NULL) {
+    HMENU menuHandle = LoadMenuA(hInstance, MAKEINTRESOURCE(CONTEXT_MENU_RESOURCE_ID));
+    if (menuHandle == NULL) {
         // Falha ao carregar o menu
         return false;
     }
 
     // Obtém o primeiro (e provavelmente único) submenu
-    HMENU hPopupMenu = GetSubMenu(hMenu, 0);
+    HMENU hPopupMenu = GetSubMenu(menuHandle, 0);
     if (hPopupMenu == NULL) {
         // Falha ao obter o submenu
-        DestroyMenu(hMenu);
+        DestroyMenu(menuHandle);
         return false;
     }
 
@@ -670,7 +684,7 @@ bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
     );
 
     // Limpa o menu da memória
-    DestroyMenu(hMenu);
+    DestroyMenu(menuHandle);
 
     // Verifica se o item "What's This?" foi selecionado (ID 8)
     return (result == 8);
@@ -765,7 +779,7 @@ LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     LRESULT result = 0;
     int iVar;
     BOOL bVar;
-    HMENU hMenu;
+    HMENU menuHandle;
     DWORD DVar;
     UINT commandID;
     POINT ptMouse;
@@ -894,8 +908,8 @@ LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             commandID = MF_GRAYED;
         }
         menuItemID = ID_EDIT_PASTE;
-        hMenu = GetMenu(hWnd);
-        EnableMenuItem(hMenu, menuItemID, commandID);
+        menuHandle = GetMenu(hWnd);
+        EnableMenuItem(menuHandle, menuItemID, commandID);
         break;
 
     case WM_CTLCOLORSTATIC:
