@@ -28,6 +28,7 @@ _calculatorWindows calcWindows = {
     .scientific = NULL
 };
 
+extern _calculatorState calcState;
 _calculatorState calcState;
 _calculatorMode calcMode = STANDARD_MODE;
 
@@ -543,7 +544,7 @@ const char* getStatusCode(int statusCode)
 }
 
 /*
- * refreshInterface
+ * refreshInterface()
  *
  * This function is responsible for redrawing the entire calculator interface.
  * It handles both standard and scientific modes, adjusting the layout accordingly.
@@ -653,8 +654,8 @@ void processButtonClick(uint currentKeyPressed)
 {
     bool isValidInput;
     double calculationResult;
-    char tempCharBuffer[52];
     static DWORD previousKeyPressed;
+    int parenthesisDepth = 0;
 
     // Check if the key is a special function key
     if (isSpecialFunctionKey(currentKeyPressed)) {
@@ -690,7 +691,7 @@ void processButtonClick(uint currentKeyPressed)
 
     // Process numeric input
     if (isNumericInput(currentKeyPressed)) {
-        int digit = convertKeyToDigit(keyPressed);
+        int digit = convertKeyToDigit(currentKeyPressed);
         if (digit < numberBase) {
             if (numberBase == 10) {
                 if (!appendDigit(&calculatorState, digit)) {
@@ -745,14 +746,14 @@ bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
     // Flags para o TrackPopupMenuEx
     const UINT TRACK_POPUP_FLAGS = TPM_RETURNCMD | TPM_RIGHTBUTTON;
 
-    // Carrega o menu de contexto dos recursos da aplicação
+    // Carrega o menu de contexto dos recursos da aplicaï¿½ï¿½o
     HMENU menuHandle = LoadMenuA(hInstance, MAKEINTRESOURCE(CONTEXT_MENU_RESOURCE_ID));
     if (menuHandle == NULL) {
         // Falha ao carregar o menu
         return false;
     }
 
-    // Obtém o primeiro (e provavelmente único) submenu
+    // Obtï¿½m o primeiro (e provavelmente ï¿½nico) submenu
     HMENU hPopupMenu = GetSubMenu(menuHandle, 0);
     if (hPopupMenu == NULL) {
         // Falha ao obter o submenu
@@ -760,21 +761,21 @@ bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
         return false;
     }
 
-    // Extrai as coordenadas x e y do mouse do parâmetro message
+    // Extrai as coordenadas x e y do mouse do parï¿½metro message
     WORD xPos = LOWORD(message);
     WORD yPos = HIWORD(message);
 
-    // Exibe o menu de contexto na posição do mouse
+    // Exibe o menu de contexto na posiï¿½ï¿½o do mouse
     UINT result = TrackPopupMenuEx(
         hPopupMenu,
         TRACK_POPUP_FLAGS,
         xPos,
         yPos,
         hwnd,
-        NULL  // Não usamos TPMPARAMS neste caso
+        NULL  // Nï¿½o usamos TPMPARAMS neste caso
     );
 
-    // Limpa o menu da memória
+    // Limpa o menu da memï¿½ria
     DestroyMenu(menuHandle);
 
     // Verifica se o item "What's This?" foi selecionado (ID 8)

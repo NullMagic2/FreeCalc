@@ -109,6 +109,10 @@ extern int BUTTON_BASE_SIZE;
 #define STATUS_UNDERFLOW              6  // Result is too small for display
 #define STATUS_UNDEFINED_RESULT       7  // Result of function is undefined
 
+//Maximum number of digits the calculator can handle.
+#define MAX_INTEGER_DIGITS 13   //Decimal mode. For hex mode, this is 8.
+#define MAX_DECIMAL_DIGITS 28   //Fractional part.
+
 static const char* STATUS_MESSAGE_TABLE[] = {
     "Success",
     "Cannot divide by zero",
@@ -122,7 +126,7 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 
 #define STATUS_MESSAGE_TABLE_END (STATUS_MESSAGE_TABLE + sizeof(STATUS_MESSAGE_TABLE)/sizeof(STATUS_MESSAGE_TABLE[0]))
 
-//Calculator buttons – standard mode
+//Calculator buttons ï¿½ standard mode
 // Standard Calculator Button IDs
 #define IDC_BUTTON_MC     0x80  // Memory Clear
 #define IDC_BUTTON_MR     0x81  // Memory Recall

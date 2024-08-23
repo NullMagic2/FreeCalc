@@ -1,5 +1,9 @@
+#include "input.h"
+#include "main.h"
+
+
 /*
- * isSpecialFunctionKey
+ * isSpecialFunctionKey()
  *
  * This function determines whether a given key press represents a special function
  * in the calculator application. It checks for both standard special keys and
@@ -25,8 +29,8 @@
  */
 bool isSpecialFunctionKey(DWORD keyPressed) {
     // Define special function key ranges and individual keys
-    const uint SPECIAL_KEY_START = 0x7d;
-    const uint SPECIAL_KEY_END = 0x81;
+    const DWORD SPECIAL_KEY_START = 0x7d;
+    const DWORD SPECIAL_KEY_END = 0x81;
 
     // Check if the key is within the special function key range
     if (keyPressed >= SPECIAL_KEY_START && keyPressed <= SPECIAL_KEY_END) {
@@ -43,7 +47,7 @@ bool isSpecialFunctionKey(DWORD keyPressed) {
     }
 
     // Check for keys that might be special based on current mode
-    if (calculatorMode == SCIENTIFIC_MODE) {
+    if (calcState.calculatorMode == SCIENTIFIC_MODE) {
         // Additional keys that are special in scientific mode
         if (keyPressed >= 0x74 && keyPressed <= 0x78) {
             return true;
@@ -54,9 +58,65 @@ bool isSpecialFunctionKey(DWORD keyPressed) {
     return false;
 }
 
+/*
+ * appendDigit
+ *
+ * This function appends a digit to the current input value in the calculator.
+ * It handles both integer and decimal parts of the number, updating the
+ * internal state and display string representation.
+ *
+ * @param digit    The digit to be appended (0-9)
+ * @return         TRUE if the digit was successfully appended, FALSE otherwise
+ */
+BOOL appendDigit(int digit)
+{
+    if (digit < 0 || digit > 9) {
+        return FALSE;
+    }
+
+    char digitChar = digit + '0';
+    BOOL success = FALSE;
+
+    if (calcState.decimalFlag == 0) {
+        // Handling the integer part
+        if (digit == 0 && calcState.integerDigits == 0) {
+            return TRUE;  // Ignore leading zeros
+        }
+        if (calcState.integerDigits >= MAX_INTEGER_DIGITS) {
+            return FALSE;  // Maximum integer digits reached
+        }
+        calcState.integerDigits++;
+        calcState.integerValue = calcState.integerValue * 10 + digit;
+        success = TRUE;
+    } else {
+        // Handling the decimal part
+        if (calcState.decimalDigits >= MAX_DECIMAL_DIGITS) {
+            return FALSE;  // Maximum decimal digits reached
+        }
+        calcState.decimalDigits++;
+        calcState.decimalValue = calcState.decimalValue * 10 + digit;
+        success = TRUE;
+    }
+
+    if (success) {
+        // Update display string
+        int insertPos = calcState.integerDigits + calcState.decimalDigits;
+        if (calcState.decimalFlag && calcState.decimalDigits == 1) {
+            calcState.displayString[insertPos - 1] = '.';
+        }
+        calcState.displayString[insertPos] = digitChar;
+        calcState.displayString[insertPos + 1] = '\0';
+
+        // Convert to float
+        DecimalToFloat();  // Assume this updates calcState.floatValue
+    }
+
+    return success;
+}
+
 
 /*
- * updateInputMode
+ * updateInputMode()
  *
  * This function manages the calculator's input mode based on the key pressed.
  * It determines whether to activate or deactivate the input mode, which affects
