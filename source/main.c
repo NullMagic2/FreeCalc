@@ -122,10 +122,24 @@ WORD windowStateTable[] = {
 int BUTTON_BASE_SIZE = 0;
 
 
-// Initialize the calculator's state
-// This function sets up the initial values for all calculator parameters,
-// including display settings, memory registers, and calculation mode.
-// It should be called once at the start of the application.
+/*
+ * initCalcState()
+ *
+ * This function initializes the calculator's state, setting up all initial values
+ * for the calculator parameters. It should be called once at the start of the application.
+ *
+ * The function performs the following tasks:
+ * 1. Initializes string constants (class name, registry key, mode text)
+ * 2. Sets the default help file path
+ * 3. Initializes numeric values (precision, error codes, button states, etc.)
+ * 4. Sets up the initial calculator mode
+ * 5. Clears memory registers and error states
+ * 6. Sets the default decimal separator
+ * 7. Updates the decimal separator based on system settings
+ *
+ * @param None
+ * @return None
+ */
 void initCalcState(void)
 {
     // Initialize string constants
@@ -160,9 +174,25 @@ void initCalcState(void)
     //configureFPUPrecision();  // Configure floating-point unit precision
 }
 
-// Windows entry point for the calculator application
-// This function initializes the application, creates the main window,
-// and runs the message loop until the application is closed.
+/*
+ * WinMain
+ *
+ * This function serves as the Windows entry point for the calculator application.
+ * It initializes the application, creates the main window, and runs the message loop
+ * until the application is closed.
+ *
+ * The function performs the following tasks:
+ * 1. Initializes the calculator state by calling initCalcState()
+ * 2. Registers the calculator window class using registerCalcClass()
+ * 3. Creates the main calculator window using initInstance()
+ * 4. Enters the main message loop to process and dispatch Windows messages
+ *
+ * @param appInstance     Handle to the current instance of the application
+ * @param unused          Always NULL for Win32 applications (legacy parameter)
+ * @param commandLine     Command line arguments as a single string
+ * @param windowMode      Controls how the window is to be shown (e.g., maximized)
+ * @return                The value from the WM_QUIT message's wParam parameter
+ */
 int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE unused, LPSTR commandLine, int windowMode)
 {
     MSG msg;
@@ -191,6 +221,25 @@ int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE unused, LPSTR commandLine, i
     return (int)msg.wParam;
 }
 
+/*
+ * registerCalcClass
+ *
+ * This function registers the window class for the calculator application.
+ * It sets up the window class attributes and registers it with the Windows system.
+ *
+ * The function performs the following tasks:
+ * 1. Initializes a WNDCLASSEXA structure with zeroes
+ * 2. Sets the window class style (CS_HREDRAW | CS_VREDRAW)
+ * 3. Assigns the window procedure (calcWindowProc)
+ * 4. Sets the application instance handle
+ * 5. Loads default application icon and cursor
+ * 6. Sets the window background color
+ * 7. Assigns the class name from calcState
+ * 8. Registers the window class with the Windows system
+ *
+ * @param appInstance     Handle to the current instance of the application
+ * @return                The atom identifying the newly registered class, or 0 if registration fails
+ */
 ATOM registerCalcClass(HINSTANCE appInstance)
 {
     WNDCLASSEXA wcex = { 0 };
@@ -211,6 +260,24 @@ ATOM registerCalcClass(HINSTANCE appInstance)
     return RegisterClassExA(&wcex);
 }
 
+/*
+ * initInstance
+ *
+ * This function creates and initializes the main window for the calculator application.
+ * It sets up the window, configures its properties, and prepares it for display.
+ *
+ * The function performs the following tasks:
+ * 1. Creates the main window using CreateWindowExA with specified styles and dimensions
+ * 2. Checks if window creation was successful
+ * 3. Sets up a RECT structure for proper button measurement
+ * 4. Uses MapDialogRect to convert dialog units to pixels
+ * 5. Initializes the BUTTON_BASE_SIZE for consistent UI scaling
+ * 6. Shows and updates the main window
+ *
+ * @param appInstance     Handle to the current instance of the application
+ * @param windowMode      Controls how the window is to be shown (e.g., maximized, minimized)
+ * @return                true if window creation and initialization succeed, false otherwise
+ */
 bool initInstance(HINSTANCE appInstance, int windowMode)
 {
     calcState.windowHandle = CreateWindowExA(
@@ -247,6 +314,28 @@ bool initInstance(HINSTANCE appInstance, int windowMode)
     return true;
 }
 
+/*
+ * initColors
+ *
+ * This function initializes and updates the color scheme and layout of the calculator application.
+ * It handles both standard and scientific modes, adjusting the interface accordingly.
+ *
+ * The function performs the following tasks:
+ * 1. Determines the background color based on the current calculator mode
+ * 2. Checks if the background color or decimal separator has changed
+ * 3. Updates the calculator's layout and dimensions based on the current mode
+ * 4. Adjusts the main window size and position
+ * 5. Updates the menu to reflect the current mode
+ * 6. Redraws the window background with the new color
+ * 7. Shows or hides interface elements based on the current mode
+ * 8. Sets up the scientific mode if necessary
+ * 9. Updates the mode text display
+ *
+ * This function is crucial for maintaining the visual consistency and proper layout
+ * of the calculator across different modes and system settings.
+ *
+ * @param forceUpdate     If true, forces a complete update of the interface regardless of changes
+ */
 void initColors(int forceUpdate)
 {
     char previousDecimalSeparator;
@@ -430,7 +519,7 @@ void handleCalculationError(int errorCode)
 }
 
 /*
- * getStatusCode
+ * getStatusCode()
  *
  * This function retrieves a status message corresponding to a given status code.
  * It uses the STATUS_MESSAGE_TABLE to directly access the message.
