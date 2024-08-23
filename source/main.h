@@ -21,6 +21,7 @@
                                        UI initialization, and calculator logic.
 
  -------------------------------------------------------------------------------*/
+#pragma once
 
 #ifndef MAIN_H
 #define MAIN_H
@@ -31,6 +32,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <stdbool.h>
+#include "input.h"
 
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -107,17 +109,15 @@ extern int BUTTON_BASE_SIZE;
 #define STATUS_UNDERFLOW              6  // Result is too small for display
 #define STATUS_UNDEFINED_RESULT       7  // Result of function is undefined
 
-static const struct {
-    int status;
-    const char* message;
-} STATUS_MESSAGE_TABLE[] = {
-    {STATUS_DIVISION_BY_ZERO, "Cannot divide by zero"},
-    {STATUS_CLIPBOARD_ERROR, "Cannot open Clipboard."},
-    {STATUS_INSUFFICIENT_MEMORY, "Insufficient memory for data; close one or more Windows Applications to increase available memory."},
-    {STATUS_INVALID_INPUT, "Invalid input for function"},
-    {STATUS_OVERFLOW, "Result is too large for display"},
-    {STATUS_UNDERFLOW, "Result is too small for display"},
-    {STATUS_UNDEFINED_RESULT, "Result of function is undefined"}
+static const char* STATUS_MESSAGE_TABLE[] = {
+    "Success",
+    "Cannot divide by zero",
+    "Cannot open Clipboard.",
+    "Insufficient memory for data; close one or more Windows Applications to increase available memory.",
+    "Invalid input for function.",
+    "Result is too large for display.",
+    "Result is too small for display.",
+    "Result of function is undefined."
 };
 
 #define STATUS_MESSAGE_TABLE_END (STATUS_MESSAGE_TABLE + sizeof(STATUS_MESSAGE_TABLE)/sizeof(STATUS_MESSAGE_TABLE[0]))
@@ -251,28 +251,29 @@ typedef struct {
 } _calculatorWindows;
 
 typedef struct {
-    const char* className;
-    const char* registryKey;
-    char helpFilePath[MAX_PATH];
-    DWORD currentBackgroundColor;
-    DWORD defaultPrecisionValue;
-    DWORD errorCodeBase;
-    HINSTANCE appInstance;
-    DWORD pressedButton;
-    HWND windowHandle;
-    _calculatorMode mode;
-    const char* modeText[2];
-    DWORD currentValueHighPart;
-    DWORD accumulatedValue;
-    DWORD lastValue;
-    DWORD memoryRegister[2];
-    int errorState;
-    UINT currentKeyPressed;
-    BOOL isHighContrastMode;
-    char decimalSeparator;
-    char decimalSeparatorBuffer[2];
-    int buttonHorizontalSpacing;
+    const char* className;        // Name of the window class for the calculator
+    const char* registryKey;      // Registry key for storing calculator settings
+    char helpFilePath[MAX_PATH];  // Path to the calculator's help file
+    DWORD currentBackgroundColor; // Current background color of the calculator
+    DWORD defaultPrecisionValue;  // Default precision for calculations
+    DWORD errorCodeBase;          // Base value for error codes
+    HINSTANCE appInstance;        // Handle to the current instance of the application
+    DWORD keyPressed;             // Stores the currently pressed key
+    HWND windowHandle;            // Handle to the main calculator window
+    _calculatorMode mode;         // Current mode of the calculator (Standard or Scientific)
+    const char* modeText[2];      // Text representations of calculator modes
+    DWORD currentValueHighPart;   // High part of the current value (for high precision)
+    DWORD accumulatedValue;       // Current value or result of the last operation
+    DWORD lastValue;              // Previous value before the last operation
+    DWORD memoryRegister[2];      // Memory storage for calculator operations
+    int errorState;               // Current error state of the calculator
+    BOOL isHighContrastMode;      // Flag indicating if high contrast mode is active
+    BOOL isInputModeActive;  // Flag indicating if input mode is active
+    char decimalSeparator;        // Character used as decimal separator
+    char decimalSeparatorBuffer[2]; // Buffer for storing decimal separator
+    int buttonHorizontalSpacing;  // Horizontal spacing between calculator buttons
 } _calculatorState;
+
 
 extern DWORD defaultPrecisionValue;
 extern DWORD errorCodeBase;
@@ -291,7 +292,7 @@ LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 DWORD configureCodePageSettings(int requestedCodePage);
 DWORD getCalculatorButton(ushort x, ushort y);
 const char* getStatusCode(int statusCode);
-void initCalculatorState(void);
+void initCalcState(void);
 bool initInstance(HINSTANCE appInstance, int windowMode);
 void initApplicationCodePage(void);
 void initApplicationPath(void);
@@ -301,7 +302,7 @@ void initEnvironmentVariables(void);
 ATOM registerCalcClass(HINSTANCE appInstance);
 void handleCalculationError(int errorCode);
 bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT param);
-void processButtonClick(uint keypressed);
+void processButtonClick(uint currentKeyPressed);
 void updateButtonState(uint buttonID, int state);
 void updateDisplay(void);
 void refreshInterface(void);

@@ -121,7 +121,12 @@ WORD windowStateTable[] = {
 // This ensures consistent button sizing across different display configurations.
 int BUTTON_BASE_SIZE = 0;
 
-void initCalculatorState(void)
+
+// Initialize the calculator's state
+// This function sets up the initial values for all calculator parameters,
+// including display settings, memory registers, and calculation mode.
+// It should be called once at the start of the application.
+void initCalcState(void)
 {
     // Initialize string constants
     calcState.className = "CalculatorClass";
@@ -136,14 +141,13 @@ void initCalculatorState(void)
     calcState.defaultPrecisionValue = 0;
     calcState.errorCodeBase = 0;
     calcState.appInstance = NULL;
-    calcState.pressedButton = INVALID_BUTTON;
+    calcState.keyPressed = INVALID_BUTTON;
     calcState.windowHandle = NULL;
     calcState.mode = STANDARD_MODE;
     calcState.currentValueHighPart = 0;
     calcState.accumulatedValue = 0;
     calcState.lastValue = 0;
     calcState.errorState = 0;
-    calcState.currentKeyPressed = 0;
     calcState.decimalSeparator = DEFAULT_DECIMAL_SEPARATOR;
     calcState.memoryRegister[0] = 0;
     calcState.memoryRegister[1] = 0;
@@ -156,13 +160,16 @@ void initCalculatorState(void)
     //configureFPUPrecision();  // Configure floating-point unit precision
 }
 
+// Windows entry point for the calculator application
+// This function initializes the application, creates the main window,
+// and runs the message loop until the application is closed.
 int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE unused, LPSTR commandLine, int windowMode)
 {
     MSG msg;
     appInstance = calcState.appInstance;
 
     // Initialize calculator state
-    initCalculatorState(&calcState);
+    initCalcState();
 
     if (!registerCalcClass(calcState.appInstance))
     {
@@ -426,31 +433,24 @@ void handleCalculationError(int errorCode)
  * getStatusCode
  *
  * This function retrieves a status message corresponding to a given status code.
- * It searches through the STATUS_MESSAGE_TABLE to find a matching status code.
+ * It uses the STATUS_MESSAGE_TABLE to directly access the message.
  *
  * The function performs the following tasks:
- * 1. Iterates through the STATUS_MESSAGE_TABLE
- * 2. Compares each table entry's status code with the given statusCode
- * 3. Returns the corresponding message if a match is found
- * 4. Returns NULL if no matching status code is found
+ * 1. Checks if the given statusCode is within the valid range
+ * 2. If valid, returns the corresponding message from STATUS_MESSAGE_TABLE
+ * 3. If invalid, returns NULL
  *
- * The STATUS_MESSAGE_TABLE is a global array containing status codes and their
- * corresponding messages. Each entry in the table consists of two elements:
- * the status code and a pointer to the message string.
- *
+ * @param statusCode The status code to look up
+ * @return The corresponding status message, or NULL if the status code is invalid
  */
 const char* getStatusCode(int statusCode)
 {
-    // Iterate through the STATUS_MESSAGE_TABLE
-    for (int i = 0; i < (STATUS_MESSAGE_TABLE_END - STATUS_MESSAGE_TABLE); i++) {
-        // Check if the current table entry matches the given status code
-        if (STATUS_MESSAGE_TABLE[i].status == statusCode) {
-            // If a match is found, return the corresponding message
-            return STATUS_MESSAGE_TABLE[i].message;
-        }
+    if ((statusCode >= 0) && (statusCode < STATUS_MESSAGE_TABLE_END)) {
+        return STATUS_MESSAGE_TABLE[statusCode];
     }
-    // If no matching status code is found, return NULL
-    return NULL;
+    else {
+        return NULL; // No matching status message found
+    }
 }
 
 /*
@@ -560,45 +560,47 @@ void refreshInterface(void)
     ShowCursor(FALSE);
 }
 
-void processButtonClick(uint keyPressed)
+void processButtonClick(uint currentKeyPressed)
 {
     bool isValidInput;
     double calculationResult;
     char tempCharBuffer[52];
-    int tempBaseValue;
+    static DWORD previousKeyPressed;
 
     // Check if the key is a special function key
-    if (isSpecialFunctionKey(keyPressed)) {
+    if (isSpecialFunctionKey(currentKeyPressed)) {
         previousKeyPressed = currentKeyPressed;
-        currentKeyPressed = keyPressed;
+        calcState.keyPressed = currentKeyPressed;
     }
 
     // Handle error state
-    if (errorState != 0 && !isClearKey(keyPressed)) {
+    if (errorState != 0 && !isClearKey(currentKeyPressed)) {
         MessageBeep(0);
         return;
     }
 
     // Handle input mode activation
-    if (!isInputModeActive) {
-        isValidInput = isNumericInput(keyPressed) || keyPressed == 0x55;
+    calcState.isInputModeActive = updateInputMode(currentKeyPressed);
+
+    if (!calcState.isInputModeActive) {
+        isValidInput = isNumericInput(currentKeyPressed) || currentKeyPressed == 0x55;
         if (isValidInput) {
-            isInputModeActive = true;
+            calcState.isInputModeActive = true;
             InitcalcState(&calcState);
         }
     }
-    else if (isOperatorKey(keyPressed) || keyPressed == 0x12d) {
-        isInputModeActive = false;
+    else if (isOperatorKey(currentKeyPressed) || currentKeyPressed == 0x12d) {
+        calcState.isInputModeActive = false;
     }
 
     // Reset calculator state for certain key combinations
-    if (isNumericInput(keyPressed) &&
+    if (isNumericInput(currentKeyPressed) &&
         (isPreviousKeyOperator() || (previousKeyPressed == 0x29 && parenthesisDepth == 0) || keyPressed == 0x12d)) {
         resetCalculatorState();
     }
 
     // Process numeric input
-    if (isNumericInput(keyPressed)) {
+    if (isNumericInput(currentKeyPressed)) {
         int digit = convertKeyToDigit(keyPressed);
         if (digit < numberBase) {
             if (numberBase == 10) {
@@ -618,14 +620,14 @@ void processButtonClick(uint keyPressed)
     // Process operator input
     else if (isOperatorKey(keyPressed)) {
         if (hasOperatorPending) {
-            calculationResult = performAdvancedCalculation(currentOperator, lastValue, calcState.currentValue);
+            calculationResult = performAdvancedCalculation(currentOperator, lastValue, calcState.accumulatedValue);
             updatecalcState(calculationResult);
 
             while (operatorStackPointer > 0 && shouldProcessPendingOperator()) {
                 operatorStackPointer--;
                 currentOperator = popOperator();
                 lastValue = popOperand();
-                calculationResult = performAdvancedCalculation(currentOperator, lastValue, calcState.currentValue);
+                calculationResult = performAdvancedCalculation(currentOperator, lastValue, calcState.accumulatedValue);
                 updateCalculatorState(calculationResult);
             }
         }
