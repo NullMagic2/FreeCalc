@@ -211,7 +211,7 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 #define IDC_BUTTON_STAT_RED  0x75    // RET (Retrieve) button
 #define IDC_BUTTON_STAT_LOAD 0x76    // LOAD button
 #define IDC_BUTTON_STAT_CE   0x77    // C (Clear Entry) button
-#define IDC_BUTTON_STAT_C    0x78    // CAD (Clear All Data) button
+#define IDC_BUTTON_STAT_CAD  0x78    // CAD (Clear All Data) button
 
 // Hexadecimal digits
 #define IDC_BUTTON_A      0xB5  // Hexadecimal digit A
@@ -284,6 +284,8 @@ typedef struct {
     HINSTANCE appInstance;        // Handle to the current instance of the application
     int buttonHorizontalSpacing;  // Horizontal spacing between calculator buttons
     const char* className;        // Name of the window class for the calculator
+    int currentSign               // Positive / negative sign of the current input.
+    DWORD currentOperator;        // Current operation (ADDITION, SUBTRACTION, MULTIPLICATION...)
     DWORD currentValueHighPart;   // High part of the current value (for high precision)
     DWORD currentBackgroundColor; // Current background color of the calculator
     char decimalSeparator;        // Character used as decimal separator
@@ -306,6 +308,8 @@ typedef struct {
 
     
 } _calculatorState;
+
+extern _calculatorState calcState;
 
 
 extern DWORD defaultPrecisionValue;

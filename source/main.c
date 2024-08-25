@@ -27,7 +27,6 @@ _calculatorWindows calcWindows = {
     .scientific = NULL
 };
 
-extern _calculatorState calcState;
 _calculatorState calcState;
 _calculatorMode calcMode = STANDARD_MODE;
 
@@ -675,7 +674,7 @@ void refreshInterface(void)
  *
  * No return value.
  */
-void processButtonClick(uint keyPressed)
+void processButtonClick(uint currentKeyPressed)
 {
     bool isValidInput;
     double calculationResult;
@@ -683,38 +682,37 @@ void processButtonClick(uint keyPressed)
     uint parenthesisCount, i;
 
     // Handle special function keys
-    if (!isSpecialFunctionKey(keyPressed)) {
-        calcState.previousKeyPressed = calcState.currentKeyPressed;
-        calcState.currentKeyPressed = keyPressed;
+    if (!isSpecialFunctionKey(currentKeyPressed)) {
+        calcState.keyPressed= currentKeyPressed;
     }
 
     // Handle error state
-    if (calcState.errorState != 0 && !isClearKey(keyPressed)) {
+    if (calcState.errorState != 0 && !isClearKey(currentKeyPressed)) {
         MessageBeep(0);
         return;
     }
 
     // Handle input mode activation
     if (!calcState.isInputModeActive) {
-        isValidInput = isNumericInput(keyPressed) || keyPressed == IDC_BUTTON_DOT;
+        isValidInput = isNumericInput(currentKeyPressed) || currentKeyPressed == IDC_BUTTON_DOT;
         if (isValidInput) {
             calcState.isInputModeActive = true;
             initCalcState();
         }
     }
-    else if (isOperatorKey(keyPressed) || keyPressed == IDC_BUTTON_EXP) {
+    else if (isOperatorKey(currentKeyPressed) || currentKeyPressed == IDC_BUTTON_EXP) {
         calcState.isInputModeActive = false;
     }
 
     // Reset calculator state for certain key combinations
-    if (isNumericInput(keyPressed) &&
-        (isPreviousKeyOperator() || (calcState.previousKeyPressed == IDC_BUTTON_RPAR && calcState.parenthesisDepth == 0) || keyPressed == IDC_BUTTON_EXP)) {
+    if (isNumericInput(currentKeyPressed) &&
+        (isPreviousKeyOperator() || (calcState.keyPressed == IDC_BUTTON_RPAR && calcState.parenthesisDepth == 0) || currentKeyPressed == IDC_BUTTON_EXP)) {
         resetCalculatorState();
     }
 
     // Process numeric input
-    if (isNumericInput(keyPressed)) {
-        int digit = convertKeyToDigit(keyPressed);
+    if (isNumericInput(currentKeyPressed)) {
+        int digit = convertKeyToDigit(currentKeyPressed);
         if (digit < calcState.numberBase) {
             if (calcState.numberBase == 10) {
                 if (!appendDigit(&calcState.accumulatedValue, digit)) {
@@ -723,7 +721,7 @@ void processButtonClick(uint keyPressed)
                 }
             } else {
                 if (isValueOverflow(calcState.accumulatedValue, calcState.numberBase, digit)) {
-                    handleCalculationError(ERROR_OVERFLOW);
+                    handleCalculationError(STATUS_OVERFLOW);
                     return;
                 }
                 calcState.accumulatedValue = calcState.numberBase * calcState.accumulatedValue + digit * calcState.currentSign;
@@ -736,18 +734,18 @@ void processButtonClick(uint keyPressed)
     }
 
     // Handle statistics button
-    if (keyPressed == IDC_BUTTON_STA) {
-        if (calcState.calculatorMode == SCIENTIFIC_MODE) {
-            keyPressed = IDC_BUTTON_STA;
+    if (currentKeyPressed == IDC_BUTTON_STA) {
+        if (calcState.mode == SCIENTIFIC_MODE) {
+            currentKeyPressed = IDC_BUTTON_STA;
         }
-        toggleStatisticsWindow(keyPressed);
+        toggleStatisticsWindow(currentKeyPressed);
         return;
     }
 
     // Handle statistical functions
-    if (keyPressed >= IDC_BUTTON_STAT_RED && keyPressed <= IDC_BUTTON_STAT_CAD) {
+    if (currentKeyPressed >= IDC_BUTTON_STAT_RED && currentKeyPressed <= IDC_BUTTON_STAT_CAD) {
         if (calcState.statisticsWindowOpen) {
-            performStatisticalCalculation(keyPressed);
+            performStatisticalCalculation(currentKeyPressed);
             if (calcState.errorState == 0) {
                 updateDisplay();
             }
@@ -760,14 +758,14 @@ void processButtonClick(uint keyPressed)
     }
 
     // Process operator input
-    if (isOperatorKey(keyPressed)) {
+    if (isOperatorKey(currentKeyPressed)) {
         if (calcState.hasOperatorPending) {
             do {
                 stackPointer = calcState.operatorStackPointer;
-                newOperatorPrecedence = getOperatorPrecedence(keyPressed);
-                currentOperatorPrecedence = getOperatorPrecedence(calcState.currentOperator);
+                newOperatorPrecedence = getOperatorPrecedence(currentKeyPressed);
+                currentOperatorPrecedence = getOperatorPrecedence(calcState.operator);
 
-                if (newOperatorPrecedence > currentOperatorPrecedence && calcState.calculatorMode == STANDARD_MODE) {
+                if (newOperatorPrecedence > currentOperatorPrecedence && calcState.mode == STANDARD_MODE) {
                     if (calcState.operatorStackPointer < MAX_OPERATOR_STACK) {
                         pushOperator(calcState.currentOperator, calcState.lastValue);
                     } else {
@@ -775,7 +773,7 @@ void processButtonClick(uint keyPressed)
                         MessageBeep(0);
                     }
                     calcState.lastValue = calcState.accumulatedValue;
-                    calcState.currentOperator = keyPressed;
+                    calcState.currentOperator = currentKeyPressed;
                     calcState.accumulatedValue = 0.0;
                     calcState.isLastInputComplete = true;
                     calcState.hasOperatorPending = true;
@@ -803,10 +801,10 @@ void processButtonClick(uint keyPressed)
             calcState.hasOperatorPending = true;
             calcState.isLastInputComplete = true;
             calcState.accumulatedValue = 0.0;
-            calcState.currentOperator = keyPressed;
+            calcState.currentOperator = currentKeyPressed;
         } else {
             calcState.lastValue = calcState.accumulatedValue;
-            calcState.currentOperator = keyPressed;
+            calcState.currentOperator = currentKeyPressed;
             calcState.accumulatedValue = 0.0;
             calcState.isLastInputComplete = true;
             calcState.hasOperatorPending = true;
@@ -816,7 +814,7 @@ void processButtonClick(uint keyPressed)
     }
 
     // Handle special cases
-    handleSpecialCases(keyPressed);
+    handleSpecialCases(currentKeyPressed);
 
     updateDisplay();
 }

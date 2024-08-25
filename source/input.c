@@ -1,6 +1,7 @@
 #include "input.h"
 #include "main.h"
 
+extern _calculatorState calcState;
 
 /*
  * appendDigit
@@ -24,6 +25,8 @@
  * @param digit         The digit to be appended (0-15, depending on the current base)
  * @return              1 if the digit was successfully appended, 0 otherwise
  */
+
+
 BOOL appendDigit(char* accumulatedValue, int digit)
 {
     int integerDigits = strlen(accumulatedValue);
@@ -98,7 +101,7 @@ BOOL appendDigit(char* accumulatedValue, int digit)
 }
 
 /*
- * isClearKey(uint keyPressed)
+ * isClearKey(DWORD keyPressed)
  *
  * This function determines whether the pressed key is a clear key (CE or C).
  * It is used to identify when the user wants to clear the current entry or reset
@@ -107,13 +110,13 @@ BOOL appendDigit(char* accumulatedValue, int digit)
  * @param keyPressed The ID of the button that was pressed
  * @return BOOL TRUE if the pressed key is a clear key, FALSE otherwise
  */
-BOOL isClearKey(uint keyPressed)
+BOOL isClearKey(DWORD keyPressed)
 {
     return (keyPressed == IDC_BUTTON_CE || keyPressed == IDC_BUTTON_C);
 }
 
 /*
- * isNumericInput(uint keyPressed)
+ * isNumericInput(DWORD keyPressed)
  *
  * This function determines whether the pressed key represents a numeric input.
  * It is used to identify when the user is entering numbers into the calculator.
@@ -126,7 +129,7 @@ BOOL isClearKey(uint keyPressed)
  * @param keyPressed The ID of the button that was pressed
  * @return BOOL TRUE if the pressed key is a numeric input, FALSE otherwise
  */
-BOOL isNumericInput(uint keyPressed)
+BOOL isNumericInput(DWORD keyPressed)
 {
     // Check for digits 0-9
     if (keyPressed >= IDC_BUTTON_0 && keyPressed <= IDC_BUTTON_9) {
@@ -143,7 +146,7 @@ BOOL isNumericInput(uint keyPressed)
 }
 
 /*
- * isOperatorKey(uint keyPressed)
+ * isOperatorKey(DWORD keyPressed)
  *
  * This function determines whether the pressed key represents an arithmetic operator.
  * It is used to identify when the user is entering an arithmetic operation.
@@ -156,7 +159,7 @@ BOOL isNumericInput(uint keyPressed)
  * @param keyPressed The ID of the button that was pressed
  * @return BOOL TRUE if the pressed key is an operator, FALSE otherwise
  */
-BOOL isOperatorKey(uint keyPressed)
+BOOL isOperatorKey(DWORD keyPressed)
 {
     // Check for basic arithmetic operators
     switch (keyPressed)
@@ -299,7 +302,7 @@ BOOL isPreviousKeyOperator()
  * @param keyPressed   The key code of the pressed key
  * @return             true if the key is a special function key, false otherwise
  */
-bool isSpecialFunctionKey(DWORD keyPressed) {
+BOOL isSpecialFunctionKey(DWORD keyPressed) {
     // Define special function key ranges and individual keys
     const DWORD SPECIAL_KEY_START = 0x7d;
     const DWORD SPECIAL_KEY_END = 0x81;
