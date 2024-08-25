@@ -718,30 +718,27 @@ void processButtonClick(uint currentKeyPressed)
         int digit = convertKeyToDigit(currentKeyPressed);
         if (digit < calcState.numberBase) {
             if (calcState.numberBase == 10) {
-                if (!appendDigit(&calcState.accumulatedValue, digit)) {
+                if (!appendDigit(calcState.accumulatedValue, digit)) { // Pass the string
                     MessageBeep(0);
                     return;
                 }
-            } else {
+            }
+            else {
                 if (isValueOverflow(calcState.accumulatedValue, calcState.numberBase, digit)) {
                     handleCalculationError(STATUS_OVERFLOW);
                     return;
                 }
-                calcState.accumulatedValue = calcState.numberBase * calcState.accumulatedValue + digit * calcState.currentSign;
+                // Convert accumulatedValue to an integer, perform the calculation,
+                // then convert back to a string.
+                LONGLONG accumulatedInt = strtol(calcState.accumulatedValue, NULL, calcState.numberBase);
+                accumulatedInt = calcState.numberBase * accumulatedInt + digit * calcState.currentSign;
+                _ltoa(accumulatedInt, calcState.accumulatedValue, calcState.numberBase);
             }
-        } else {
+        }
+        else {
             MessageBeep(0);
         }
         updateDisplay();
-        return;
-    }
-
-    // Handle statistics button
-    if (currentKeyPressed == IDC_BUTTON_STA) {
-        if (calcState.mode == SCIENTIFIC_MODE) {
-            currentKeyPressed = IDC_BUTTON_STA;
-        }
-        toggleStatisticsWindow(currentKeyPressed);
         return;
     }
 

@@ -315,8 +315,9 @@ typedef struct {
     const char* modeText[2];                    // Text representations of calculator modes
     DWORD memoryRegister[2];                    // Memory storage for calculator operations
     int numberBase;                             // Current number base (2 for binary, 8 for octal, 10 for decimal, 16 for hexadecimal)
+    BOOL statisticsWindowOpen;                  // Flag to track if the statistics window is open
     const char* registryKey;                    // Registry key for storing calculator settings
-    _extendedFloat80 scientificNumber;         // 80-bit extended precision floating-point number
+    _extendedFloat80 scientificNumber;          // 80-bit extended precision floating-point number
     HWND windowHandle;                          // Handle to the main calculator window
     
 } _calculatorState;
