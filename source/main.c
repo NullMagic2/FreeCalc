@@ -21,6 +21,7 @@
   -----------------------------------------------------------------------------*/
 
 #include "main.h"
+#include "operations.h"
 
 _calculatorWindows calcWindows = {
     .main = NULL,
@@ -151,7 +152,7 @@ void initCalcState(void)
     strcpy_s(calcState.helpFilePath, MAX_PATH, "calc.hlp");
 
     // Initialize numeric values
-    calcState.accumulatedValue = 0;
+    memset(calcState.accumulatedValue, 0, sizeof(calcState.accumulatedValue));
     calcState.appInstance = NULL;
     calcState.currentValueHighPart = 0;
     calcState.defaultPrecisionValue = 0;
@@ -165,6 +166,9 @@ void initCalcState(void)
     calcState.memoryRegister[0] = 0;
     calcState.memoryRegister[1] = 0;
     calcState.numberBase = 10;
+    calcState.scientificNumber.exponent = 0;
+    calcState.scientificNumber.mantissaLow = 0;
+    calcState.scientificNumber.mantissaHigh = 0;
     calcState.windowHandle = NULL;
 
     updateDecimalSeparator();
@@ -679,11 +683,10 @@ void processButtonClick(uint currentKeyPressed)
     bool isValidInput;
     double calculationResult;
     int currentOperatorPrecedence, newOperatorPrecedence, stackPointer;
-    uint parenthesisCount, i;
 
     // Handle special function keys
     if (!isSpecialFunctionKey(currentKeyPressed)) {
-        calcState.keyPressed= currentKeyPressed;
+        calcState.keyPressed = currentKeyPressed;
     }
 
     // Handle error state
@@ -706,7 +709,7 @@ void processButtonClick(uint currentKeyPressed)
 
     // Reset calculator state for certain key combinations
     if (isNumericInput(currentKeyPressed) &&
-        (isPreviousKeyOperator() || (calcState.keyPressed == IDC_BUTTON_RPAR && calcState.parenthesisDepth == 0) || currentKeyPressed == IDC_BUTTON_EXP)) {
+        (isPreviousKeyOperator() || calcState.keyPressed == IDC_BUTTON_RPAR || currentKeyPressed == IDC_BUTTON_EXP)) {
         resetCalculatorState();
     }
 
@@ -755,6 +758,28 @@ void processButtonClick(uint currentKeyPressed)
         calcState.isInverseMode = false;
         updateToggleButton(IDC_BUTTON_INV, false);
         return;
+    }
+
+    // Handle parentheses
+    if (currentKeyPressed == IDC_BUTTON_LPAR) {
+        pushOperator(IDC_BUTTON_LPAR, 0); // Push left parenthesis onto the stack
+    } else if (currentKeyPressed == IDC_BUTTON_RPAR) {
+        // Evaluate expressions until we find a left parenthesis
+        while (calcState.operatorStackPointer > 0 && getTopOperator() != IDC_BUTTON_LPAR) {
+            if (calcState.operatorStackPointer > 0) {
+                uint operator = popOperator();
+                double operand2 = popOperand();
+                double operand1 = popOperand();
+                double result = performAdvancedCalculation(operator, operand1, operand2);
+                pushOperand(result);
+            }
+        }
+        if (calcState.operatorStackPointer > 0 && getTopOperator() == IDC_BUTTON_LPAR) {
+            popOperator(); // Remove the left parenthesis
+        } else {
+            MessageBeep(0); // Error: Unmatched closing parenthesis
+            return;
+        }
     }
 
     // Process operator input

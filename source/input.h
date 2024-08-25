@@ -1,3 +1,13 @@
+/*-----------------------------------------------------------------------------
+    input.h --  Header file for Input Handling Functions of the Windows
+                Calculator (reconstructed code).
+
+                This header defines constants and function prototypes for
+                the input.c module. It provides an interface for other modules
+                to access input-related functionality.
+
+ -------------------------------------------------------------------------------*/
+
 #ifndef INPUT_H
 #define INPUT_H
 
@@ -12,6 +22,7 @@
 extern const short int MAX_DIGITS_FOR_BASE[];
 
 BOOL appendDigit(char* accumulatedValue, int digit);
+int convertKeyToDigit(uint keyCode);
 BOOL isClearKey(DWORD keyPressed);
 BOOL isNumericInput(DWORD keyPressed);
 BOOL isPreviousKeyOperator();

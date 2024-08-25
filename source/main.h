@@ -21,10 +21,11 @@
                                        UI initialization, and calculator logic.
 
  -------------------------------------------------------------------------------*/
-#pragma once
 
 #ifndef MAIN_H
 #define MAIN_H
+
+#pragma once
 
 #undef UNICODE
 #undef _UNICODE
@@ -113,6 +114,8 @@ extern int BUTTON_BASE_SIZE;
 
 #define MAX_DECIMAL_DIGITS 13      //Decimal mode. For hex mode, this is 8.
 #define MAX_FRACTIONAL_DIGITS 28   //Fractional part.
+
+#define MAX_DISPLAY_DIGITS 35       //Maximum number of digits the calculator can display.
 
 static const char* STATUS_MESSAGE_TABLE[] = {
     "Success",
@@ -239,9 +242,18 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 //Assumes English locale
 #define DEFAULT_DECIMAL_SEPARATOR '.'
 
+// Structure to represent an 80-bit extended precision floating-point number
+typedef struct {
+    unsigned short exponent;      // 15 bits: exponent + sign 
+    unsigned int mantissaLow;    // 32 bits: lower part of mantissa
+    unsigned int mantissaHigh;   // 32 bits: upper part of mantissa
+} _extendedFloat80;
+
+
 typedef enum {
     STANDARD_MODE = 0,
-    SCIENTIFIC_MODE = 1
+    SCIENTIFIC_MODE = 1,
+    SCIENTIFIC_NOTATION = 2,
 } _calculatorMode;
 
 typedef enum {
@@ -280,32 +292,32 @@ typedef struct {
 } _calculatorWindows;
 
 typedef struct {
-    char *accumulatedValue;       // Current value or result of the last operation
-    HINSTANCE appInstance;        // Handle to the current instance of the application
-    int buttonHorizontalSpacing;  // Horizontal spacing between calculator buttons
-    const char* className;        // Name of the window class for the calculator
-    int currentSign               // Positive / negative sign of the current input.
-    DWORD currentOperator;        // Current operation (ADDITION, SUBTRACTION, MULTIPLICATION...)
-    DWORD currentValueHighPart;   // High part of the current value (for high precision)
-    DWORD currentBackgroundColor; // Current background color of the calculator
-    char decimalSeparator;        // Character used as decimal separator
-    char decimalSeparatorBuffer[2]; // Buffer for storing decimal separator
-    DWORD defaultPrecisionValue;  // Default precision for calculations
-    int errorState;               // Current error state of the calculator
-    DWORD errorCodeBase;          // Base value for error codes
-    BOOL hasOperatorPending;     // Flag indicating if an operator is pending
-    char helpFilePath[MAX_PATH];  // Path to the calculator's help file
-    DWORD keyPressed;             // Stores the currently pressed key
-    _calculatorMode mode;         // Current mode of the calculator (Standard or Scientific)
-    const char* modeText[2];      // Text representations of calculator modes
-    int numberBase;               // Current number base (2 for binary, 8 for octal, 10 for decimal, 16 for hexadecimal)
-    DWORD lastValue;              // Previous value before the last operation
-    DWORD memoryRegister[2];      // Memory storage for calculator operations
-    BOOL isHighContrastMode;      // Flag indicating if high contrast mode is active
-    BOOL isInputModeActive;       // Flag indicating if input mode is active
-    const char* registryKey;      // Registry key for storing calculator settings
-    HWND windowHandle;            // Handle to the main calculator window
-
+    char accumulatedValue[MAX_DISPLAY_DIGITS];  // Current value or result of the last operation
+    HINSTANCE appInstance;                      // Handle to the current instance of the application
+    int buttonHorizontalSpacing;                // Horizontal spacing between calculator buttons
+    const char* className;                      // Name of the window class for the calculator
+    int currentSign;                            // Positive / negative sign of the current input.
+    DWORD currentOperator;                      // Current operation (ADDITION, SUBTRACTION, MULTIPLICATION...)
+    DWORD currentValueHighPart;                 // High part of the current value (for high precision)
+    DWORD currentBackgroundColor;               // Current background color of the calculator
+    char decimalSeparator;                      // Character used as decimal separator
+    char decimalSeparatorBuffer[2];             // Buffer for storing decimal separator
+    DWORD defaultPrecisionValue;                // Default precision for calculations
+    int errorState;                             // Current error state of the calculator
+    DWORD errorCodeBase;                        // Base value for error codes
+    BOOL hasOperatorPending;                    // Flag indicating if an operator is pending
+    BOOL isHighContrastMode;                    // Flag indicating if high contrast mode is active
+    BOOL isInputModeActive;                     // Flag indicating if input mode is active
+    char helpFilePath[MAX_PATH];                // Path to the calculator's help file
+    DWORD keyPressed;                           // Stores the currently pressed key
+    DWORD lastValue;                            // Previous value before the last operation
+    _calculatorMode mode;                       // Current mode of the calculator (Standard or Scientific)
+    const char* modeText[2];                    // Text representations of calculator modes
+    DWORD memoryRegister[2];                    // Memory storage for calculator operations
+    int numberBase;                             // Current number base (2 for binary, 8 for octal, 10 for decimal, 16 for hexadecimal)
+    const char* registryKey;                    // Registry key for storing calculator settings
+    _extendedFloat80 scientificNumber;         // 80-bit extended precision floating-point number
+    HWND windowHandle;                          // Handle to the main calculator window
     
 } _calculatorState;
 

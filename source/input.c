@@ -1,7 +1,40 @@
+/*-----------------------------------------------------------------------------
+    input.c --  Input Handling Functions for the Windows Calculator
+                    (reconstructed code).
+
+                This module handles the interpretation of keyboard and mouse
+                input for the calculator, converting user actions into
+                calculator operations, digit entries, and special functions.
+                It manages input modes and interacts with other modules
+                to update the calculator's state and display.
+
+                Key functions include:
+
+                - appendDigit: Appends a digit to the accumulated value,
+                                handling different number bases.
+                - convertKeyToDigit: Maps button IDs to numeric digit values.
+                - isClearKey: Determines if a key is a clear (CE or C) key.
+                - isNumericInput:  Identifies numeric input keys (0-9, A-F).
+                - isOperatorKey:  Identifies operator keys (+, -, *, /, etc.).
+                - isPreviousKeyOperator: Checks if the last key was an operator.
+                - isSpecialFunctionKey:  Determines if a key is a special
+                                        function (memory, mode, etc.).
+                - updateInputMode: Activates/deactivates input mode based on
+                                    the key pressed.
+
+-------------------------------------------------------------------------------*/
 #include "input.h"
 #include "main.h"
+#include "operations.h"
+#include <float.h>
+#include <math.h>
+#include <limits.h>
 
 extern _calculatorState calcState;
+
+#ifndef LONGLONG_MAX
+#define LONGLONG_MAX 0x7FFFFFFFFFFFFFFFLL
+#endif
 
 /*
  * appendDigit
@@ -98,6 +131,67 @@ BOOL appendDigit(char* accumulatedValue, int digit)
 
     DecimalToFloat(&calcState);
     return TRUE;
+}
+
+/*
+ * convertKeyToDigit
+ *
+ * This function converts a key code representing a calculator button
+ * to its corresponding digit value. It supports digits 0-9 for decimal
+ * input and A-F for hexadecimal input.
+ *
+ * The function uses a switch statement to map each key code (assumed
+ * to be predefined constants like IDC_BUTTON_0, IDC_BUTTON_1, etc.)
+ * to its corresponding integer value.
+ *
+ * For decimal digits (0-9), the function returns the digit's value.
+ * For hexadecimal digits (A-F), it returns values 10-15 respectively.
+ *
+ * If an invalid or unsupported key code is provided, the function
+ * returns -1 to indicate an error.
+ *
+ * @param keyCode   The key code of the pressed calculator button
+ * @return          The corresponding digit value (0-15) or -1 for invalid input
+ */
+int convertKeyToDigit(uint keyCode)
+{
+    switch (keyCode)
+    {
+        case IDC_BUTTON_0:
+            return 0;
+        case IDC_BUTTON_1:
+            return 1;
+        case IDC_BUTTON_2:
+            return 2;
+        case IDC_BUTTON_3:
+            return 3;
+        case IDC_BUTTON_4:
+            return 4;
+        case IDC_BUTTON_5:
+            return 5;
+        case IDC_BUTTON_6:
+            return 6;
+        case IDC_BUTTON_7:
+            return 7;
+        case IDC_BUTTON_8:
+            return 8;
+        case IDC_BUTTON_9:
+            return 9;
+        case IDC_BUTTON_A:
+            return 10;
+        case IDC_BUTTON_B:
+            return 11;
+        case IDC_BUTTON_C:
+            return 12;
+        case IDC_BUTTON_D:
+            return 13;
+        case IDC_BUTTON_E:
+            return 14;
+        case IDC_BUTTON_F:
+            return 15;
+        default:
+            return -1; // Invalid key
+    }
 }
 
 /*
@@ -210,6 +304,47 @@ BOOL isOperatorKey(DWORD keyPressed)
     }
 }
 
+bool isValueOverflow(int digit) {
+    switch (calcState.mode) {
+        case STANDARD_MODE:
+            // 32-bit integer overflow check
+            if (calcState.accumulatedValue > (LONG_MAX - digit) / (LONG)calcState.numberBase) {
+                return true;
+            }
+            break;
+
+        case SCIENTIFIC_MODE:
+            // 64-bit integer overflow check 
+            if (calcState.accumulatedValue > (LONGLONG_MAX - digit) / (LONGLONG)calcState.numberBase) {
+                return true;
+            }
+
+            // Convert accumulatedValue string to a double for overflow check
+            double accumulatedDouble = strtod(calcState.accumulatedValue, NULL);
+
+            // Also check for floating-point overflow
+            if (!isfinite(accumulatedDouble * calcState.numberBase + digit)) { 
+                return true;
+            }
+            break;
+
+        case SCIENTIFIC_NOTATION:
+            // Convert the accumulated value (string) to ExtendedFloat80
+            stringToExtendedFloat80(calcState.accumulatedValue);
+
+            // Check for overflow using the updated function 
+            if (isValueOverflowExtended()) {
+                return true;
+            }
+            break;
+
+        default:
+            // Unknown mode, assume overflow for safety
+            return true;
+    }
+
+    return false;
+}
 
 /*
  * isPreviousKeyOperator()

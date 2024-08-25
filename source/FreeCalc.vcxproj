@@ -130,6 +130,7 @@
   <ItemGroup>
     <ClCompile Include="input.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="operations.c" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FreeCalc.rc" />
@@ -141,6 +142,7 @@
   <ItemGroup>
     <ClInclude Include="input.h" />
     <ClInclude Include="main.h" />
+    <ClInclude Include="operations.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
