@@ -48,9 +48,6 @@ extern int BUTTON_BASE_SIZE;
 #define INVALID_BUTTON    0xffffffff  // Represents an invalid or unassigned button ID, using max DWORD value
 #define HELP_CONTEXT_DATA 0x40c128    // Pointer to help context data structure, likely used with WinHelp API
 
-#define STAT_BUTTON_ID    0x67        // ID for the statistics button in standard mode (103 in decimal)
-#define STAT_ALT_BUTTON_ID 0x8c       // Alternate ID for the statistics button in scientific mode (140 in decimal)
-
 #define MEMORY_BUTTON_START 0x40      // Start of memory button ID range (64 in decimal)
 #define MEMORY_BUTTON_END 0x47        // End of memory button ID range (71 in decimal)
 #define MEMORY_BUTTON_DEFAULT 0x41    // Default memory button ID, likely "Memory Recall" (65 in decimal)
@@ -110,8 +107,12 @@ extern int BUTTON_BASE_SIZE;
 #define STATUS_UNDEFINED_RESULT       7  // Result of function is undefined
 
 //Maximum number of digits the calculator can handle.
-#define MAX_INTEGER_DIGITS 13   //Decimal mode. For hex mode, this is 8.
-#define MAX_DECIMAL_DIGITS 28   //Fractional part.
+#define MAX_BINARY_DIGITS 32
+#define MAX_OCTAL_DIGITS 11
+#define MAX_HEXADECIMAL_DIGITS 8
+
+#define MAX_DECIMAL_DIGITS 13      //Decimal mode. For hex mode, this is 8.
+#define MAX_FRACTIONAL_DIGITS 28   //Fractional part.
 
 static const char* STATUS_MESSAGE_TABLE[] = {
     "Success",
@@ -187,21 +188,45 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 #define IDC_BUTTON_FACT   0xAB  // Factorial
 
 #define IDC_BUTTON_MSUB   0xAC  // Memory Subtract
+#define IDC_BUTTON_MOD    0xAD  // Modulo
 
-#define IDC_RADIO_DEG     0xAD  // Degrees
-#define IDC_RADIO_RAD     0xAE  // Radians
-#define IDC_RADIO_GRAD    0xAF  // Gradians
+#define IDC_RADIO_DEG     0xAE  // Degrees
+#define IDC_RADIO_RAD     0xAF  // Radians
+#define IDC_RADIO_GRAD    0xB0  // Gradians
 
-#define IDC_RADIO_HEX     0xB0  // Hexadecimal
-#define IDC_RADIO_DEC     0xB1  // Decimal
-#define IDC_RADIO_OCT     0xB2  // Octal
-#define IDC_RADIO_BIN     0xB3  // Binary
+#define IDC_RADIO_HEX     0xB1  // Hexadecimal
+#define IDC_RADIO_DEC     0xB2  // Decimal
+#define IDC_RADIO_OCT     0xB3  // Octal
+#define IDC_RADIO_BIN     0xB4  // Binary
 
 #define IDC_BUTTON_AND    0xB8  // Bitwise AND
 #define IDC_BUTTON_OR     0xB9  // Bitwise OR
 #define IDC_BUTTON_XOR    0xBA  // Bitwise XOR
 #define IDC_BUTTON_NOT    0xBB  // Bitwise NOT
 #define IDC_BUTTON_LSH    0xBC  // Left shift
+
+#define IDC_BUTTON_STA 0x8c           // Statistics button in scientific mode
+
+// Buttons within the statistics window
+#define IDC_BUTTON_STAT_RED  0x75    // RET (Retrieve) button
+#define IDC_BUTTON_STAT_LOAD 0x76    // LOAD button
+#define IDC_BUTTON_STAT_CE   0x77    // C (Clear Entry) button
+#define IDC_BUTTON_STAT_C    0x78    // CAD (Clear All Data) button
+
+// Hexadecimal digits
+#define IDC_BUTTON_A      0xB5  // Hexadecimal digit A
+#define IDC_BUTTON_B      0xB6  // Hexadecimal digit B
+#define IDC_BUTTON_C      0xB7  // Hexadecimal digit C
+#define IDC_BUTTON_D      0xBD  // Hexadecimal digit D
+#define IDC_BUTTON_E      0xBE  // Hexadecimal digit E
+#define IDC_BUTTON_F      0xBF  // Hexadecimal digit F
+
+
+// Other constants
+#define IDC_BUTTON_DECIMAL 0x55
+#define IDC_BUTTON_RPAREN  0x29
+#define IDC_BUTTON_EXP     0x12D
+#define IDC_BUTTON_INV     0x7D
 
 // Display controls
 #define IDC_EDIT_RESULT   0x9B  // Result display
@@ -255,27 +280,31 @@ typedef struct {
 } _calculatorWindows;
 
 typedef struct {
-    const char* className;        // Name of the window class for the calculator
-    const char* registryKey;      // Registry key for storing calculator settings
-    char helpFilePath[MAX_PATH];  // Path to the calculator's help file
-    DWORD currentBackgroundColor; // Current background color of the calculator
-    DWORD defaultPrecisionValue;  // Default precision for calculations
-    DWORD errorCodeBase;          // Base value for error codes
+    char *accumulatedValue;       // Current value or result of the last operation
     HINSTANCE appInstance;        // Handle to the current instance of the application
-    DWORD keyPressed;             // Stores the currently pressed key
-    HWND windowHandle;            // Handle to the main calculator window
-    _calculatorMode mode;         // Current mode of the calculator (Standard or Scientific)
-    const char* modeText[2];      // Text representations of calculator modes
+    int buttonHorizontalSpacing;  // Horizontal spacing between calculator buttons
+    const char* className;        // Name of the window class for the calculator
     DWORD currentValueHighPart;   // High part of the current value (for high precision)
-    DWORD accumulatedValue;       // Current value or result of the last operation
-    DWORD lastValue;              // Previous value before the last operation
-    DWORD memoryRegister[2];      // Memory storage for calculator operations
-    int errorState;               // Current error state of the calculator
-    BOOL isHighContrastMode;      // Flag indicating if high contrast mode is active
-    BOOL isInputModeActive;  // Flag indicating if input mode is active
+    DWORD currentBackgroundColor; // Current background color of the calculator
     char decimalSeparator;        // Character used as decimal separator
     char decimalSeparatorBuffer[2]; // Buffer for storing decimal separator
-    int buttonHorizontalSpacing;  // Horizontal spacing between calculator buttons
+    DWORD defaultPrecisionValue;  // Default precision for calculations
+    int errorState;               // Current error state of the calculator
+    DWORD errorCodeBase;          // Base value for error codes
+    BOOL hasOperatorPending;     // Flag indicating if an operator is pending
+    char helpFilePath[MAX_PATH];  // Path to the calculator's help file
+    DWORD keyPressed;             // Stores the currently pressed key
+    _calculatorMode mode;         // Current mode of the calculator (Standard or Scientific)
+    const char* modeText[2];      // Text representations of calculator modes
+    int numberBase;               // Current number base (2 for binary, 8 for octal, 10 for decimal, 16 for hexadecimal)
+    DWORD lastValue;              // Previous value before the last operation
+    DWORD memoryRegister[2];      // Memory storage for calculator operations
+    BOOL isHighContrastMode;      // Flag indicating if high contrast mode is active
+    BOOL isInputModeActive;       // Flag indicating if input mode is active
+    const char* registryKey;      // Registry key for storing calculator settings
+    HWND windowHandle;            // Handle to the main calculator window
+
+    
 } _calculatorState;
 
 
@@ -310,6 +339,7 @@ void processButtonClick(uint currentKeyPressed);
 void updateButtonState(uint buttonID, int state);
 void updateDisplay(void);
 void refreshInterface(void);
+void resetCalculatorState(void);
 
 DWORD initCalculatorRuntime(int initializationFlags);
 void updateDecimalSeparator();

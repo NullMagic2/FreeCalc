@@ -3,6 +3,278 @@
 
 
 /*
+ * appendDigit
+ *
+ * This function appends a digit to the current input value in the calculator.
+ * It handles both integer and decimal parts of the number, updating the
+ * internal state represented by the byte array passed as the first parameter.
+ * The function supports multiple number bases, including decimal (base 10),
+ * hexadecimal (base 16), octal (base 8), and binary (base 2).
+ *
+ * For non-decimal bases, digits are interpreted as follows:
+ * - Decimal: '0' through '9'
+ * - Hexadecimal: '0' through '9' and 'A' through 'F' (case-insensitive)
+ * - Octal: '0' through '7'
+ * - Binary: '0' and '1'
+ *
+ * The function handles leading zeros, maximum digit limits for each base,
+ * and placement of the decimal separator for floating-point numbers.
+ *
+ * @param accumulatedValue Pointer to the byte array representing the calculator's internal state
+ * @param digit         The digit to be appended (0-15, depending on the current base)
+ * @return              1 if the digit was successfully appended, 0 otherwise
+ */
+BOOL appendDigit(char* accumulatedValue, int digit)
+{
+    int integerDigits = strlen(accumulatedValue);
+    char digitChar;
+
+    // Handle digits 0-9 and A-F for hexadecimal
+    if (digit < 10) {
+        digitChar = digit + '0';
+    }
+    else if (digit < 16) {
+        digitChar = digit - 10 + 'A';
+    }
+    else {
+        return FALSE;  // Invalid digit for any supported base
+    }
+
+    // Check if the digit is valid for the current base
+    if (digit >= calcState.numberBase) {
+        return FALSE;
+    }
+
+    if (!hasDecimalSeparator(accumulatedValue)) {
+        // Integer part
+        if (digit == 0 && integerDigits == 0) {
+            return TRUE;  // Ignore leading zeros
+        }
+
+        switch (calcState.numberBase) {
+        case 2:  // Binary
+            if (integerDigits >= MAX_BINARY_DIGITS) return FALSE;
+            break;
+        case 8:  // Octal
+            if (integerDigits >= MAX_OCTAL_DIGITS) return FALSE;
+            break;
+        case 10: // Decimal
+            if (integerDigits >= MAX_DECIMAL_DIGITS) return FALSE;
+            break;
+        case 16: // Hexadecimal
+            if (integerDigits >= MAX_HEXADECIMAL_DIGITS) return FALSE;
+            break;
+        default:
+            return FALSE; // Invalid base
+        }
+
+        accumulatedValue[integerDigits] = digitChar;
+        accumulatedValue[integerDigits + 1] = '\0';
+
+        if (hasDecimalSeparator(accumulatedValue)) {
+            accumulatedValue[integerDigits + 1] = calcState.decimalSeparator;
+            accumulatedValue[integerDigits + 2] = '\0';
+        }
+    }
+    else {
+        // Decimal part (only for base 10)
+        if (calcState.numberBase != 10) {
+            return FALSE;
+        }
+        int decimalDigits = calcState.currentValueHighPart;
+        if (decimalDigits >= MAX_DECIMAL_DIGITS) {
+            return FALSE;
+        }
+        calcState.currentValueHighPart = decimalDigits * 10 + digit;
+
+        // Shift existing decimal digits
+        int insertPos = integerDigits + decimalDigits + 1;
+        memmove(&accumulatedValue[insertPos + 1], &accumulatedValue[insertPos], strlen(&accumulatedValue[insertPos]) + 1);
+        accumulatedValue[insertPos] = digitChar;
+    }
+
+    DecimalToFloat(&calcState);
+    return TRUE;
+}
+
+/*
+ * isClearKey(uint keyPressed)
+ *
+ * This function determines whether the pressed key is a clear key (CE or C).
+ * It is used to identify when the user wants to clear the current entry or reset
+ * the entire calculator state.
+ *
+ * @param keyPressed The ID of the button that was pressed
+ * @return BOOL TRUE if the pressed key is a clear key, FALSE otherwise
+ */
+BOOL isClearKey(uint keyPressed)
+{
+    return (keyPressed == IDC_BUTTON_CE || keyPressed == IDC_BUTTON_C);
+}
+
+/*
+ * isNumericInput(uint keyPressed)
+ *
+ * This function determines whether the pressed key represents a numeric input.
+ * It is used to identify when the user is entering numbers into the calculator.
+ *
+ * The function performs the following tasks:
+ * 1. Checks if the keyPressed value is within the range of numeric button IDs (0-9)
+ * 2. Checks if the keyPressed value is a hexadecimal digit (A-F) for scientific mode
+ * 3. Returns TRUE if the key is a valid numeric input, FALSE otherwise
+ *
+ * @param keyPressed The ID of the button that was pressed
+ * @return BOOL TRUE if the pressed key is a numeric input, FALSE otherwise
+ */
+BOOL isNumericInput(uint keyPressed)
+{
+    // Check for digits 0-9
+    if (keyPressed >= IDC_BUTTON_0 && keyPressed <= IDC_BUTTON_9) {
+        return TRUE;
+    }
+    
+    // Check for hexadecimal digits A-F (only in scientific mode)
+    if (calcState.mode == SCIENTIFIC_MODE && 
+        keyPressed >= IDC_BUTTON_A && keyPressed <= IDC_BUTTON_F) {
+        return TRUE;
+    }
+    
+    return FALSE;
+}
+
+/*
+ * isOperatorKey(uint keyPressed)
+ *
+ * This function determines whether the pressed key represents an arithmetic operator.
+ * It is used to identify when the user is entering an arithmetic operation.
+ *
+ * The function performs the following tasks:
+ * 1. Checks if the keyPressed value matches any of the basic arithmetic operator button IDs
+ * 2. Checks for additional operators in scientific mode
+ * 3. Returns TRUE if the key is an operator, FALSE otherwise
+ *
+ * @param keyPressed The ID of the button that was pressed
+ * @return BOOL TRUE if the pressed key is an operator, FALSE otherwise
+ */
+BOOL isOperatorKey(uint keyPressed)
+{
+    // Check for basic arithmetic operators
+    switch (keyPressed)
+    {
+        case IDC_BUTTON_DIV:  // 0x8A
+        case IDC_BUTTON_MUL:  // 0x8E
+        case IDC_BUTTON_SUB:  // 0x92
+        case IDC_BUTTON_ADD:  // 0x96
+        case IDC_BUTTON_EQ:  // 0x97
+            return TRUE;
+    }
+
+    // Check for additional operators
+    switch (keyPressed)
+    {
+        case IDC_BUTTON_SQRT: // 0x98
+        case IDC_BUTTON_PERC: // 0x99
+        case IDC_BUTTON_INV:  // 0x9A
+            return TRUE;
+
+        // Operators available only in scientific mode
+        case IDC_BUTTON_SIN:  // 0x9C
+        case IDC_BUTTON_COS:  // 0x9D
+        case IDC_BUTTON_TAN:  // 0x9E
+        case IDC_BUTTON_ASIN: // 0x9F
+        case IDC_BUTTON_ACOS: // 0xA0
+        case IDC_BUTTON_ATAN: // 0xA1
+        case IDC_BUTTON_LOG:  // 0xA2
+        case IDC_BUTTON_LN:   // 0xA3
+        case IDC_BUTTON_EXP:  // 0xA4
+        case IDC_BUTTON_XY:   // 0xA5
+        case IDC_BUTTON_SQR:  // 0xA9
+        case IDC_BUTTON_CUBE: // 0xAA
+        case IDC_BUTTON_FACT: // 0xAB
+        case IDC_BUTTON_MOD:  // 0xAD
+            return (calcState.mode == SCIENTIFIC_MODE);
+
+        // Bitwise operators (assuming they're only in scientific mode)
+        case IDC_BUTTON_AND:  // 0xB8
+        case IDC_BUTTON_OR:   // 0xB9
+        case IDC_BUTTON_XOR:  // 0xBA
+        case IDC_BUTTON_NOT:  // 0xBB
+        case IDC_BUTTON_LSH:  // 0xBC
+            return (calcState.mode == SCIENTIFIC_MODE);
+
+        default:
+            return FALSE;
+    }
+}
+
+
+/*
+ * isPreviousKeyOperator()
+ *
+ * This function determines whether the previously pressed key was an operator
+ * in the calculator application. It checks for various types of operator keys
+ * and considers the current calculator mode.
+ *
+ * The function performs the following checks:
+ * 1. Checks if the key is within the range of basic operator keys
+ * 2. Checks for additional operator keys that are always considered operators
+ * 3. In scientific mode, checks for scientific operator keys
+ *
+ * Operator keys include:
+ * - Basic arithmetic operators (add, subtract, multiply, divide)
+ * - Special operators like square root, percentage, and inverse
+ * - In scientific mode: trigonometric functions, logarithms, etc.
+ *
+ * This function is crucial for proper input handling and determining how to
+ * process subsequent key presses based on whether the previous key was an operator.
+ *
+ * @param state    Pointer to the current calculator state
+ * @return         TRUE if the previous key was an operator, FALSE otherwise
+ */
+BOOL isPreviousKeyOperator()
+{
+
+    // Define the range of operator key codes
+    const int MIN_OPERATOR_KEY = 0x56;  // Assuming 0x56 is the lowest operator key code
+    const int MAX_OPERATOR_KEY = 0x5F;  // Assuming 0x5F is the highest operator key code
+
+    // Check if the key is within the basic operator key range
+ // Check if the previous key pressed falls within the operator range
+    if (calcState.keyPressed >= MIN_OPERATOR_KEY && calcState.keyPressed <= MAX_OPERATOR_KEY) {
+        return TRUE;
+    }
+
+    // Check for additional operators
+    switch (calcState.keyPressed)
+    {
+        case IDC_BUTTON_SQRT:
+        case IDC_BUTTON_PERC:
+        case IDC_BUTTON_INV:
+            return TRUE;
+
+        // Operators available only in scientific mode
+        case IDC_BUTTON_SIN:
+        case IDC_BUTTON_COS:
+        case IDC_BUTTON_TAN:
+        case IDC_BUTTON_ASIN:
+        case IDC_BUTTON_ACOS:
+        case IDC_BUTTON_ATAN:
+        case IDC_BUTTON_LOG:
+        case IDC_BUTTON_LN:
+        case IDC_BUTTON_EXP:
+        case IDC_BUTTON_AND:
+        case IDC_BUTTON_OR:
+        case IDC_BUTTON_XOR:
+        case IDC_BUTTON_NOT:
+        case IDC_BUTTON_LSH:
+            return (calcState.mode == SCIENTIFIC_MODE);
+
+        default:
+            return FALSE;
+    }
+}
+
+/*
  * isSpecialFunctionKey()
  *
  * This function determines whether a given key press represents a special function
@@ -47,7 +319,7 @@ bool isSpecialFunctionKey(DWORD keyPressed) {
     }
 
     // Check for keys that might be special based on current mode
-    if (calcState.calculatorMode == SCIENTIFIC_MODE) {
+    if (calcState.mode == SCIENTIFIC_MODE) {
         // Additional keys that are special in scientific mode
         if (keyPressed >= 0x74 && keyPressed <= 0x78) {
             return true;
@@ -56,62 +328,6 @@ bool isSpecialFunctionKey(DWORD keyPressed) {
 
     // If none of the above conditions are met, it's not a special function key
     return false;
-}
-
-/*
- * appendDigit
- *
- * This function appends a digit to the current input value in the calculator.
- * It handles both integer and decimal parts of the number, updating the
- * internal state and display string representation.
- *
- * @param digit    The digit to be appended (0-9)
- * @return         TRUE if the digit was successfully appended, FALSE otherwise
- */
-BOOL appendDigit(int digit)
-{
-    if (digit < 0 || digit > 9) {
-        return FALSE;
-    }
-
-    char digitChar = digit + '0';
-    BOOL success = FALSE;
-
-    if (calcState.decimalFlag == 0) {
-        // Handling the integer part
-        if (digit == 0 && calcState.integerDigits == 0) {
-            return TRUE;  // Ignore leading zeros
-        }
-        if (calcState.integerDigits >= MAX_INTEGER_DIGITS) {
-            return FALSE;  // Maximum integer digits reached
-        }
-        calcState.integerDigits++;
-        calcState.integerValue = calcState.integerValue * 10 + digit;
-        success = TRUE;
-    } else {
-        // Handling the decimal part
-        if (calcState.decimalDigits >= MAX_DECIMAL_DIGITS) {
-            return FALSE;  // Maximum decimal digits reached
-        }
-        calcState.decimalDigits++;
-        calcState.decimalValue = calcState.decimalValue * 10 + digit;
-        success = TRUE;
-    }
-
-    if (success) {
-        // Update display string
-        int insertPos = calcState.integerDigits + calcState.decimalDigits;
-        if (calcState.decimalFlag && calcState.decimalDigits == 1) {
-            calcState.displayString[insertPos - 1] = '.';
-        }
-        calcState.displayString[insertPos] = digitChar;
-        calcState.displayString[insertPos + 1] = '\0';
-
-        // Convert to float
-        DecimalToFloat();  // Assume this updates calcState.floatValue
-    }
-
-    return success;
 }
 
 

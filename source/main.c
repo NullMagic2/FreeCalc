@@ -20,7 +20,6 @@
 
   -----------------------------------------------------------------------------*/
 
-#include <windows.h>
 #include "main.h"
 
 _calculatorWindows calcWindows = {
@@ -153,19 +152,21 @@ void initCalcState(void)
     strcpy_s(calcState.helpFilePath, MAX_PATH, "calc.hlp");
 
     // Initialize numeric values
-    calcState.defaultPrecisionValue = 0;
-    calcState.errorCodeBase = 0;
-    calcState.appInstance = NULL;
-    calcState.keyPressed = INVALID_BUTTON;
-    calcState.windowHandle = NULL;
-    calcState.mode = STANDARD_MODE;
-    calcState.currentValueHighPart = 0;
     calcState.accumulatedValue = 0;
-    calcState.lastValue = 0;
-    calcState.errorState = 0;
+    calcState.appInstance = NULL;
+    calcState.currentValueHighPart = 0;
+    calcState.defaultPrecisionValue = 0;
     calcState.decimalSeparator = DEFAULT_DECIMAL_SEPARATOR;
+    calcState.errorCodeBase = 0;
+    calcState.errorState = 0;
+    calcState.hasOperatorPending = FALSE;
+    calcState.keyPressed = INVALID_BUTTON;
+    calcState.lastValue = 0;
+    calcState.mode = STANDARD_MODE;
     calcState.memoryRegister[0] = 0;
     calcState.memoryRegister[1] = 0;
+    calcState.numberBase = 10;
+    calcState.windowHandle = NULL;
 
     updateDecimalSeparator();
 
@@ -650,90 +651,172 @@ void refreshInterface(void)
     ShowCursor(FALSE);
 }
 
-void processButtonClick(uint currentKeyPressed)
+/*
+ * processButtonClick
+ *
+ * This function handles the processing of button clicks in the calculator application.
+ * It manages input mode, performs calculations, and updates the calculator state based on user input.
+ *
+ * The function performs the following tasks:
+ * 1. Checks if the pressed key is a special function key
+ * 2. Handles error states and input mode activation
+ * 3. Processes numeric input and operator input
+ * 4. Manages calculator state reset for certain key combinations
+ * 5. Performs calculations and updates the calculator state
+ * 6. Handles special cases (scientific mode, parentheses, etc.)
+ * 7. Updates the display after processing
+ *
+ * This function is central to the calculator's operation, interpreting user input
+ * and managing the flow of calculations. It works in conjunction with other functions
+ * like updateInputMode, appendDigit, and performAdvancedCalculation to provide
+ * a complete calculation experience.
+ *
+ * @param currentKeyPressed    The key code of the button that was pressed
+ *
+ * No return value.
+ */
+void processButtonClick(uint keyPressed)
 {
     bool isValidInput;
     double calculationResult;
-    static DWORD previousKeyPressed;
-    int parenthesisDepth = 0;
+    int currentOperatorPrecedence, newOperatorPrecedence, stackPointer;
+    uint parenthesisCount, i;
 
-    // Check if the key is a special function key
-    if (isSpecialFunctionKey(currentKeyPressed)) {
-        previousKeyPressed = currentKeyPressed;
-        calcState.keyPressed = currentKeyPressed;
+    // Handle special function keys
+    if (!isSpecialFunctionKey(keyPressed)) {
+        calcState.previousKeyPressed = calcState.currentKeyPressed;
+        calcState.currentKeyPressed = keyPressed;
     }
 
     // Handle error state
-    if (errorState != 0 && !isClearKey(currentKeyPressed)) {
+    if (calcState.errorState != 0 && !isClearKey(keyPressed)) {
         MessageBeep(0);
         return;
     }
 
     // Handle input mode activation
-    calcState.isInputModeActive = updateInputMode(currentKeyPressed);
-
     if (!calcState.isInputModeActive) {
-        isValidInput = isNumericInput(currentKeyPressed) || currentKeyPressed == 0x55;
+        isValidInput = isNumericInput(keyPressed) || keyPressed == IDC_BUTTON_DOT;
         if (isValidInput) {
             calcState.isInputModeActive = true;
-            InitcalcState(&calcState);
+            initCalcState();
         }
     }
-    else if (isOperatorKey(currentKeyPressed) || currentKeyPressed == 0x12d) {
+    else if (isOperatorKey(keyPressed) || keyPressed == IDC_BUTTON_EXP) {
         calcState.isInputModeActive = false;
     }
 
     // Reset calculator state for certain key combinations
-    if (isNumericInput(currentKeyPressed) &&
-        (isPreviousKeyOperator() || (previousKeyPressed == 0x29 && parenthesisDepth == 0) || keyPressed == 0x12d)) {
+    if (isNumericInput(keyPressed) &&
+        (isPreviousKeyOperator() || (calcState.previousKeyPressed == IDC_BUTTON_RPAR && calcState.parenthesisDepth == 0) || keyPressed == IDC_BUTTON_EXP)) {
         resetCalculatorState();
     }
 
     // Process numeric input
-    if (isNumericInput(currentKeyPressed)) {
-        int digit = convertKeyToDigit(currentKeyPressed);
-        if (digit < numberBase) {
-            if (numberBase == 10) {
-                if (!appendDigit(&calculatorState, digit)) {
+    if (isNumericInput(keyPressed)) {
+        int digit = convertKeyToDigit(keyPressed);
+        if (digit < calcState.numberBase) {
+            if (calcState.numberBase == 10) {
+                if (!appendDigit(&calcState.accumulatedValue, digit)) {
                     MessageBeep(0);
                     return;
                 }
-            }
-            else {
-                if (!appendDigitInBase(&calculatorState, digit, numberBase)) {
-                    MessageBeep(0);
+            } else {
+                if (isValueOverflow(calcState.accumulatedValue, calcState.numberBase, digit)) {
+                    handleCalculationError(ERROR_OVERFLOW);
                     return;
                 }
+                calcState.accumulatedValue = calcState.numberBase * calcState.accumulatedValue + digit * calcState.currentSign;
             }
+        } else {
+            MessageBeep(0);
         }
+        updateDisplay();
+        return;
     }
+
+    // Handle statistics button
+    if (keyPressed == IDC_BUTTON_STA) {
+        if (calcState.calculatorMode == SCIENTIFIC_MODE) {
+            keyPressed = IDC_BUTTON_STA;
+        }
+        toggleStatisticsWindow(keyPressed);
+        return;
+    }
+
+    // Handle statistical functions
+    if (keyPressed >= IDC_BUTTON_STAT_RED && keyPressed <= IDC_BUTTON_STAT_CAD) {
+        if (calcState.statisticsWindowOpen) {
+            performStatisticalCalculation(keyPressed);
+            if (calcState.errorState == 0) {
+                updateDisplay();
+            }
+        } else {
+            MessageBeep(0);
+        }
+        calcState.isInverseMode = false;
+        updateToggleButton(IDC_BUTTON_INV, false);
+        return;
+    }
+
     // Process operator input
-    else if (isOperatorKey(keyPressed)) {
-        if (hasOperatorPending) {
-            calculationResult = performAdvancedCalculation(currentOperator, lastValue, calcState.accumulatedValue);
-            updatecalcState(calculationResult);
+    if (isOperatorKey(keyPressed)) {
+        if (calcState.hasOperatorPending) {
+            do {
+                stackPointer = calcState.operatorStackPointer;
+                newOperatorPrecedence = getOperatorPrecedence(keyPressed);
+                currentOperatorPrecedence = getOperatorPrecedence(calcState.currentOperator);
 
-            while (operatorStackPointer > 0 && shouldProcessPendingOperator()) {
-                operatorStackPointer--;
-                currentOperator = popOperator();
-                lastValue = popOperand();
-                calculationResult = performAdvancedCalculation(currentOperator, lastValue, calcState.accumulatedValue);
-                updateCalculatorState(calculationResult);
-            }
+                if (newOperatorPrecedence > currentOperatorPrecedence && calcState.calculatorMode == STANDARD_MODE) {
+                    if (calcState.operatorStackPointer < MAX_OPERATOR_STACK) {
+                        pushOperator(calcState.currentOperator, calcState.lastValue);
+                    } else {
+                        calcState.operatorStackPointer = MAX_OPERATOR_STACK - 1;
+                        MessageBeep(0);
+                    }
+                    calcState.lastValue = calcState.accumulatedValue;
+                    calcState.currentOperator = keyPressed;
+                    calcState.accumulatedValue = 0.0;
+                    calcState.isLastInputComplete = true;
+                    calcState.hasOperatorPending = true;
+                    calcState.currentSign = 1;
+                    return;
+                }
+
+                calculationResult = performAdvancedCalculation(calcState.currentOperator, calcState.lastValue, calcState.accumulatedValue);
+                calcState.accumulatedValue = calculationResult;
+
+                if (calcState.operatorStackPointer == 0 || getTopOperator() == 0) {
+                    break;
+                }
+
+                calcState.operatorStackPointer--;
+                calcState.currentOperator = popOperator();
+                calcState.lastValue = popOperand();
+            } while (true);
         }
 
-        if (errorState == 0) {
+        if (calcState.errorState == 0) {
             updateDisplay();
-            prepareForNextOperation(keyPressed);
+            calcState.lastValue = calcState.accumulatedValue;
+            calcState.currentSign = 1;
+            calcState.hasOperatorPending = true;
+            calcState.isLastInputComplete = true;
+            calcState.accumulatedValue = 0.0;
+            calcState.currentOperator = keyPressed;
+        } else {
+            calcState.lastValue = calcState.accumulatedValue;
+            calcState.currentOperator = keyPressed;
+            calcState.accumulatedValue = 0.0;
+            calcState.isLastInputComplete = true;
+            calcState.hasOperatorPending = true;
+            calcState.currentSign = 1;
         }
-        else {
-            handleErrorState(keyPressed);
-        }
+        return;
     }
-    // Handle special cases (scientific mode, parentheses, etc.)
-    else {
-        handleSpecialCases(keyPressed);
-    }
+
+    // Handle special cases
+    handleSpecialCases(keyPressed);
 
     updateDisplay();
 }
@@ -1074,6 +1157,103 @@ LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
 
     return result;
+}
+
+BOOL hasDecimalSeparator(const char* str) {
+    if (str == NULL) {
+        return FALSE;
+    }
+
+    while (*str != '\0') {
+        if (*str == calcState.decimalSeparator) {
+            return TRUE;
+        }
+        str++;
+    }
+
+    return FALSE;
+}
+
+/*
+ * resetCalculator
+ *
+ * This function performs a complete reset of the calculator, returning it to its initial state.
+ * It resets all relevant fields in the _calculatorState structure.
+ *
+ * The function performs the following tasks:
+ * 1. Resets all numeric values and registers
+ * 2. Clears the error state
+ * 3. Resets the calculator mode to standard
+ * 4. Resets the number base to decimal (10)
+ * 5. Clears the display and pending operations
+ * 6. Resets UI-related fields
+ * 7. Reinitializes string constants and paths
+ * 8. Updates the UI elements
+ *
+ * This function ensures a clean slate for new calculations and resolves any
+ * lingering issues from previous operations.
+ *
+ * No parameters.
+ * No return value.
+ */
+void resetCalculatorState(void)
+{
+    // Reset numeric values
+    free(calcState.accumulatedValue);
+    calcState.accumulatedValue = strdup("0");
+    calcState.currentValueHighPart = 0;
+    calcState.lastValue = 0;
+    calcState.memoryRegister[0] = 0;
+    calcState.memoryRegister[1] = 0;
+
+    // Clear error state
+    calcState.errorState = 0;
+    calcState.errorCodeBase = 0;
+
+    // Reset to standard mode and decimal base
+    calcState.mode = STANDARD_MODE;
+    calcState.numberBase = 10;
+
+    // Reset key pressed and pending operations
+    calcState.keyPressed = INVALID_BUTTON;
+    calcState.hasOperatorPending = FALSE;
+    calcState.isInputModeActive = FALSE;
+
+    // Reset UI-related fields
+    calcState.currentBackgroundColor = GetSysColor(COLOR_WINDOW);
+    calcState.isHighContrastMode = FALSE;
+    calcState.buttonHorizontalSpacing = BUTTON_BASE_SIZE;
+
+    // Reset decimal separator
+    calcState.decimalSeparator = '.';
+    calcState.decimalSeparatorBuffer[0] = '.';
+    calcState.decimalSeparatorBuffer[1] = '\0';
+
+    // Reinitialize string constants and paths
+    calcState.className = "CalculatorClass";
+    calcState.registryKey = "SciCalc";
+    calcState.modeText[STANDARD_MODE] = "Standard";
+    calcState.modeText[SCIENTIFIC_MODE] = "Scientific";
+    strcpy_s(calcState.helpFilePath, MAX_PATH, "calc.hlp");
+
+    // Reset default precision
+    calcState.defaultPrecisionValue = 0;
+
+    // Update display
+    updateDisplay();
+
+    // Reset memory indicator
+    SendMessage(calcState.windowHandle, WM_COMMAND, (WPARAM)MAKELONG(IDC_BUTTON_MC, 0), 0);
+
+    // Reset radio buttons (assuming standard mode)
+    CheckRadioButton(calcState.windowHandle, 0x7f, 0x81, 0x7f);
+
+    // Update window
+    InvalidateRect(calcState.windowHandle, NULL, TRUE);
+    UpdateWindow(calcState.windowHandle);
+
+    // Refresh the interface
+    refreshInterface();
 }
 
 void updateButtonState(uint buttonId, int state)
