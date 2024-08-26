@@ -63,8 +63,6 @@ extern int BUTTON_BASE_SIZE;
                                       // Used to validate input in WM_COMMAND processing
                                       // Allows treating WM_COMMAND and WM_CHAR messages similarly
 
-#define ID_STAT_BUTTON    100         // Resource ID for statistics button, used in dialog resources
-#define ID_STAT_BUTTON_ALT 101        // Alternate resource ID for statistics button, used in dialog resources
 #define ID_EDIT_PASTE     102         // Resource ID for paste command in edit menu, used in menu resources
 
 #define SYSTEM_CODE_PAGE -3
@@ -121,6 +119,8 @@ extern int BUTTON_BASE_SIZE;
 
 #define MAX_DISPLAY_DIGITS 35      // Maximum number of digits the calculator can display.
 #define MAX_STANDARD_PRECISION 12  // Maximum precision for standard mode (32 bits)
+
+#define IDM_VIEW_STANDARD               0x9C4E  // Command to switch to standard calculator view
 
 static const char* STATUS_MESSAGE_TABLE[] = {
     "Success",
@@ -326,6 +326,7 @@ typedef struct {
     BOOL statisticsWindowOpen;                  // Flag to track if the statistics window is open
     const char* registryKey;                    // Registry key for storing calculator settings
     _extendedFloat80 scientificNumber;          // 80-bit extended precision floating-point number
+    HWND scientificWindowHandle;                // Handle to the scientific calculator window
     HWND windowHandle;                          // Handle to the main calculator window
     
 } _calculatorState;
@@ -364,7 +365,9 @@ void processButtonClick(uint currentKeyPressed);
 void refreshInterface(void);
 ATOM registerCalcClass(HINSTANCE appInstance);
 void resetCalculatorState(void);
-BOOL CALLBACK statisticsWindowProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+void toggleScientificMode(void);
+BOOL CALLBACK statisticsWindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL CALLBACK ScientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 void updateButtonState(uint buttonID, int state);
 void updateDecimalSeparator();
 void updateDisplay(void);

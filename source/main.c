@@ -145,19 +145,20 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
     UINT menuItemID;
     WORD mouseX, mouseY;
     static BOOL isButtonPressed = FALSE;
+    static DWORD currentPressedButtonID = INVALID_BUTTON;
 
     switch (uMsg)
     {
     case WM_ACTIVATE:
         iVar = (wParam == WA_ACTIVE) ? SW_SHOW : SW_HIDE;
-        if (calcState.isScientificModeActive != TRUE)
+        if (calcState.isScientificModeActive && calcState.scientificWindowHandle != NULL)
         {
-            ShowWindow(scientificModeWindow, iVar);
+            ShowWindow(calcState.scientificWindowHandle, iVar);
         }
         break;
 
     case WM_DESTROY:
-        WinHelpA(mainCalculatorWindow, helpFilePath, HELP_QUIT, 0);
+        WinHelpA(calcState.windowHandle, calcState.helpFilePath, HELP_QUIT, 0);
         PostQuitMessage(0);
         return 0;
 
@@ -196,7 +197,7 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         break;
 
     case WM_CLOSE:
-        DestroyWindow(mainCalculatorWindow);
+        DestroyWindow(calcState.windowHandle);
         break;
 
     case WM_HELP:
@@ -210,16 +211,12 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         }
         if (commandID == 0)
         {
-            WinHelpA((HWND)wParam, helpFilePath, HELP_WM_HELP, HELP_CONTEXT_DATA);
+            WinHelpA((HWND)wParam, calcState.helpFilePath, HELP_WM_HELP, HELP_CONTEXT_DATA);
             return 0;
         }
-        bVar = handleContextHelp(mainCalculatorWindow, g_hInstance, lParam);
+        bVar = handleContextHelp(calcState.windowHandle, calcState.appInstance, lParam);
         if (bVar)
         {
-            if (commandID == STAT_BUTTON_ID && calculatorMode == 0)
-            {
-                commandID = STAT_ALT_BUTTON_ID;
-            }
             if (commandID > MEMORY_BUTTON_START && commandID < MEMORY_BUTTON_END)
             {
                 commandID = MEMORY_BUTTON_DEFAULT;
@@ -228,7 +225,7 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
             {
                 commandID = DIGIT_BUTTON_DEFAULT;
             }
-            WinHelpA((HWND)wParam, helpFilePath, HELP_CONTEXTMENU, commandID);
+            WinHelpA((HWND)wParam, calcState.helpFilePath, HELP_CONTEXTMENU, commandID);
             return 0;
         }
         break;
@@ -237,14 +234,10 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         commandID = LOWORD(wParam);
         if (HIWORD(wParam) == 1 && commandID < MAX_COMMAND_ID)
         {
-            if (commandID == ID_STAT_BUTTON && calculatorMode == 1)
-            {
-                commandID = ID_STAT_BUTTON_ALT;
-            }
             for (int i = 0; i < 0x3d; i++)
             {
                 if ((elementStateTable[i] >> 8 & 0xff) == commandID &&
-                    (elementStateTable[i] & 3) != calculatorMode)
+                    (elementStateTable[i] & 3) != calcState.mode)
                 {
                     updateButtonState(commandID, 100);
                     break;
@@ -267,7 +260,7 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
             commandID = MF_GRAYED;
         }
         menuItemID = ID_EDIT_PASTE;
-        menuHandle = GetMenu(hWnd);
+        menuHandle = GetMenu(windowHandle);
         EnableMenuItem(menuHandle, menuItemID, commandID);
         break;
 
@@ -287,20 +280,20 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
     case WM_MOUSEMOVE:
         mouseX = LOWORD(lParam);
         mouseY = HIWORD(lParam);
-        if (g_nPressedButton != INVALID_BUTTON)
+        if (currentPressedButtonID != INVALID_BUTTON)
         {
             commandID = getCalculatorButton(mouseX, mouseY);
-            if (commandID == g_nPressedButton || isButtonPressed)
+            if (commandID == currentPressedButtonID || isButtonPressed)
             {
-                if (commandID == g_nPressedButton && isButtonPressed)
+                if (commandID == currentPressedButtonID && isButtonPressed)
                 {
-                    updateButtonState(g_nPressedButton, BUTTON_STATE_DOWN);
+                    updateButtonState(currentPressedButtonID, STATE_DOWN);
                     isButtonPressed = FALSE;
                 }
             }
             else
             {
-                updateButtonState(g_nPressedButton, BUTTON_STATE_UP);
+                updateButtonState(currentPressedButtonID, STATE_UP);
                 isButtonPressed = TRUE;
             }
         }
@@ -312,10 +305,10 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         commandID = getCalculatorButton(mouseX, mouseY);
         if (commandID != 0)
         {
-            g_nPressedButton = commandID;
-            updateButtonState(commandID, BUTTON_STATE_DOWN);
+            currentPressedButtonID = commandID;
+            updateButtonState(commandID, STATE_DOWN);
             isButtonPressed = FALSE;
-            SetCapture(mainCalculatorWindow);
+            SetCapture(calcState.windowHandle);
         }
         break;
 
@@ -324,20 +317,20 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         mouseX = LOWORD(lParam);
         mouseY = HIWORD(lParam);
         commandID = getCalculatorButton(mouseX, mouseY);
-        if (commandID == g_nPressedButton)
+        if (commandID == currentPressedButtonID)
         {
             if (commandID != 0)
             {
-                updateButtonState(commandID, BUTTON_STATE_UP);
+                updateButtonState(commandID, STATE_UP);
                 isButtonPressed = TRUE;
                 processButtonClick(commandID);
             }
         }
-        g_nPressedButton = INVALID_BUTTON;
+        currentPressedButtonID = INVALID_BUTTON;
         break;
 
     default:
-        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+        return DefWindowProcA(windowHandle, uMsg, wParam, lParam);
     }
 
     return result;
@@ -1426,6 +1419,65 @@ ATOM registerCalcClass(HINSTANCE appInstance)
     return RegisterClassExA(&wcex);
 }
 
+BOOL CALLBACK ScientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        // Initialize scientific mode controls
+        InitializeScientificControls(hDlg);
+        return TRUE;
+
+    case WM_COMMAND:
+        switch (LOWORD(wParam))
+        {
+        case IDC_BUTTON_SIN:
+        case IDC_BUTTON_COS:
+        case IDC_BUTTON_TAN:
+        case IDC_BUTTON_LOG:
+        case IDC_BUTTON_LN:
+        case IDC_BUTTON_EXP:
+        case IDC_BUTTON_XY:
+        case IDC_BUTTON_SQR:
+        case IDC_BUTTON_CUBE:
+        case IDC_BUTTON_FACT:
+            // Handle scientific function buttons
+            ProcessScientificFunction(LOWORD(wParam));
+            updateDisplay();
+            break;
+
+        case IDC_RADIO_DEG:
+        case IDC_RADIO_RAD:
+        case IDC_RADIO_GRAD:
+            // Handle angle mode selection
+            SetAngleMode(LOWORD(wParam));
+            break;
+
+        case IDC_RADIO_HEX:
+        case IDC_RADIO_DEC:
+        case IDC_RADIO_OCT:
+        case IDC_RADIO_BIN:
+            // Handle number base selection
+            SetNumberBase(LOWORD(wParam));
+            updateDisplay();
+            break;
+
+        case IDCANCEL:
+            // Close scientific mode
+            SendMessage(calcState.windowHandle, WM_COMMAND, IDM_VIEW_STANDARD, 0);
+            return TRUE;
+        }
+        break;
+
+    case WM_CLOSE:
+        // Switch back to standard mode instead of closing
+        SendMessage(calcState.windowHandle, WM_COMMAND, IDM_VIEW_STANDARD, 0);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 /*
  * resetCalculator
  *
@@ -1451,8 +1503,7 @@ ATOM registerCalcClass(HINSTANCE appInstance)
 void resetCalculatorState(void)
 {
     // Reset numeric values
-    free(calcState.accumulatedValue);
-    calcState.accumulatedValue = strdup("0");
+    memset(calcState.accumulatedValue, 0, sizeof(calcState.accumulatedValue));
     calcState.currentValueHighPart = 0;
     calcState.lastValue = 0;
     calcState.memoryRegister[0] = 0;
@@ -1505,6 +1556,33 @@ void resetCalculatorState(void)
     UpdateWindow(calcState.windowHandle);
 
     // Refresh the interface
+    refreshInterface();
+}
+
+void toggleScientificMode(void)
+{
+    if (!calcState.isScientificModeActive)
+    {
+        calcState.isScientificModeActive = TRUE;
+        calcState.scientificWindowHandle = CreateDialogParamA(calcState.appInstance,
+            "SCIENTIFIC_DIALOG",
+            calcState.windowHandle,
+            ScientificDialogProc, 0);
+        if (calcState.scientificWindowHandle == NULL)
+        {
+            // Handle error
+            calcState.isScientificModeActive = FALSE;
+        }
+    }
+    else
+    {
+        DestroyWindow(calcState.scientificWindowHandle);
+        calcState.scientificWindowHandle = NULL;
+        calcState.isScientificModeActive = FALSE;
+    }
+
+    // Update UI
+    initColors(TRUE);
     refreshInterface();
 }
 
@@ -1675,84 +1753,85 @@ BOOL CALLBACK statisticsWindowProc(HWND windowHandle, UINT message, WPARAM wPara
     static int dataPointCount = 0;
 
     switch (message) {
-    case WM_INITDIALOG: {
-        // Get the handle to the statistics display listbox
-        hwndStatisticsDisplay = GetDlgItem(windowHandle, ID_STAT_BUTTON);
+        case WM_INITDIALOG: {
+            // Get the handle to the statistics display listbox
+            hwndStatisticsDisplay = GetDlgItem(windowHandle, ID_STAT_BUTTON);
 
-        // Initialize statistics display
-        updateStatisticsDisplay(windowHandle);
-        return TRUE;
-    }
-
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-        case IDC_BUTTON_STAT_RED: {
-            // Copy selected data point to calculator
-            if (selectedIndex != -1) {
-                strcpy(calcState.accumulatedValue, selectedDataPointStr);
-                updateDisplay(); // Update the main calculator display
-            }
-            else {
-                MessageBeep(0); // No item selected
-            }
-            break;
+            // Initialize statistics display
+            updateStatisticsDisplay(windowHandle);
+            return TRUE;
         }
 
-        case IDC_BUTTON_STAT_LOAD: {
-            // Load data from clipboard
-            if (OpenClipboard(windowHandle)) {
-                HANDLE clipboardData = GetClipboardData(CF_TEXT);
-                if (clipboardData != NULL) {
-                    char* clipboardText = (char*)GlobalLock(clipboardData);
-                    parseAndStoreDataPoints(clipboardText); // Parse and store clipboard data
-                    GlobalUnlock(clipboardData);
+        case WM_COMMAND:
+            switch (LOWORD(wParam)) {
+            case IDC_BUTTON_STAT_RED: {
+                // Copy selected data point to calculator
+                if (selectedIndex != -1) {
+                    strcpy(calcState.accumulatedValue, selectedDataPointStr);
+                    updateDisplay(); // Update the main calculator display
+                }
+                else {
+                    MessageBeep(0); // No item selected
+                }
+                break;
+            }
+
+            case IDC_BUTTON_STAT_LOAD: {
+                // Load data from clipboard
+                if (OpenClipboard(windowHandle)) {
+                    HANDLE clipboardData = GetClipboardData(CF_TEXT);
+                    if (clipboardData != NULL) {
+                        char* clipboardText = (char*)GlobalLock(clipboardData);
+                        parseAndStoreDataPoints(clipboardText); // Parse and store clipboard data
+                        GlobalUnlock(clipboardData);
+                        updateStatisticsDisplay(windowHandle);
+                    }
+                    CloseClipboard();
+                }
+                break;
+            }
+
+            case IDC_BUTTON_STAT_CE:
+                // Clear last entry
+                if (dataPointCount > 0) {
+                    dataPointCount--;
+                    // Remove the last item from the display
+                    SendMessage(hwndStatisticsDisplay, LB_DELETESTRING, dataPointCount, 0);
                     updateStatisticsDisplay(windowHandle);
                 }
-                CloseClipboard();
-            }
-            break;
-        }
+                break;
 
-        case IDC_BUTTON_STAT_CE:
-            // Clear last entry
-            if (dataPointCount > 0) {
-                dataPointCount--;
-                // Remove the last item from the display
-                SendMessage(hwndStatisticsDisplay, LB_DELETESTRING, dataPointCount, 0);
+            case IDC_BUTTON_STAT_CAD:
+                // Clear all data
+                dataPointCount = 0;
+                // Clear the statistics display
+                SendMessage(hwndStatisticsDisplay, LB_RESETCONTENT, 0, 0);
                 updateStatisticsDisplay(windowHandle);
+                break;
+            }
+            return TRUE;
+
+        case WM_CLOSE: {
+            calcState.statisticsWindowOpen = FALSE;
+            DestroyWindow(windowHandle);
+            return TRUE;
+        }
+
+        case WM_LBUTTONDOWN: {
+            // Handle listbox item selection
+            int xPos = GET_X_LPARAM(lParam);
+            int yPos = GET_Y_LPARAM(lParam);
+
+            selectedIndex = SendMessage(hwndStatisticsDisplay, LB_ITEMFROMPOINT, 0, MAKELONG(xPos, yPos));
+            if (selectedIndex != LB_ERR && selectedIndex < dataPointCount) {
+                // Get the text of the selected item
+                SendMessage(hwndStatisticsDisplay, LB_GETTEXT, selectedIndex, (LPARAM)selectedDataPointStr);
+            }
+            else {
+                selectedIndex = -1;  // No item selected
             }
             break;
-
-        case IDC_BUTTON_STAT_CAD:
-            // Clear all data
-            dataPointCount = 0;
-            // Clear the statistics display
-            SendMessage(hwndStatisticsDisplay, LB_RESETCONTENT, 0, 0);
-            updateStatisticsDisplay(windowHandle);
-            break;
         }
-        return TRUE;
-
-    case WM_CLOSE: {
-        calcState.statisticsWindowOpen = FALSE;
-        DestroyWindow(windowHandle);
-        return TRUE;
-    }
-
-    case WM_LBUTTONDOWN: {
-        // Handle listbox item selection
-        int xPos = GET_X_LPARAM(lParam);
-        int yPos = GET_Y_LPARAM(lParam);
-
-        selectedIndex = SendMessage(hwndStatisticsDisplay, LB_ITEMFROMPOINT, 0, MAKELONG(xPos, yPos));
-        if (selectedIndex != LB_ERR && selectedIndex < dataPointCount) {
-            // Get the text of the selected item
-            SendMessage(hwndStatisticsDisplay, LB_GETTEXT, selectedIndex, (LPARAM)selectedDataPointStr);
-        }
-        else {
-            selectedIndex = -1;  // No item selected
-        }
-        break;
     }
 
     return FALSE;
