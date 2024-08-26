@@ -121,6 +121,302 @@ WORD windowStateTable[] = {
 // This ensures consistent button sizing across different display configurations.
 int BUTTON_BASE_SIZE = 0;
 
+uint currentAllocationSize = INITIAL_MEMORY_SIZE; // Current allocated memory size
+
+void adjustMemoryAllocation(void) {
+    if (isScientificMode() && calcState.currentPrecisionLevel < MAX_STANDARD_PRECISION) {
+        currentAllocationSize = EXTENDED_MEMORY_SIZE;
+    }
+    else {
+        currentAllocationSize = INITIAL_MEMORY_SIZE;
+    }
+}
+
+
+LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    LRESULT result = 0;
+    int iVar;
+    BOOL bVar;
+    HMENU menuHandle;
+    DWORD DVar;
+    UINT commandID;
+    POINT ptMouse;
+    UINT menuItemID;
+    WORD mouseX, mouseY;
+    static BOOL isButtonPressed = FALSE;
+
+    switch (uMsg)
+    {
+    case WM_ACTIVATE:
+        iVar = (wParam == WA_ACTIVE) ? SW_SHOW : SW_HIDE;
+        if (calcState.isScientificModeActive != TRUE)
+        {
+            ShowWindow(scientificModeWindow, iVar);
+        }
+        break;
+
+    case WM_DESTROY:
+        WinHelpA(mainCalculatorWindow, helpFilePath, HELP_QUIT, 0);
+        PostQuitMessage(0);
+        return 0;
+
+    case WM_SYSCOLORCHANGE:
+        if (lParam == 0 ||
+            lstrcmpA((LPCSTR)lParam, "colors") == 0 ||
+            lstrcmpA((LPCSTR)lParam, "scheme") == 0)
+        {
+            initColors(0);
+        }
+        break;
+
+    case WM_PAINT:
+        refreshInterface();
+        if (errorState == 0)
+        {
+            if (currentKeyPressed < KEY_RANGE_START || currentKeyPressed > KEY_RANGE_END)
+            {
+                updateDisplay();
+            }
+            else
+            {
+                DWORD tempHighPart = currentValueHighPart;
+                DWORD tempAccumulated = accumulatedValue;
+                currentValueHighPart = defaultPrecisionValue;
+                accumulatedValue = lastValue;
+                updateDisplay();
+                accumulatedValue = tempAccumulated;
+                currentValueHighPart = tempHighPart;
+            }
+        }
+        else
+        {
+            handleCalculationError(errorCodeBase);
+        }
+        break;
+
+    case WM_CLOSE:
+        DestroyWindow(mainCalculatorWindow);
+        break;
+
+    case WM_HELP:
+        commandID = 0;
+        if (windowHandle == (HWND)wParam)
+        {
+            ptMouse.x = GET_X_LPARAM(lParam);
+            ptMouse.y = GET_Y_LPARAM(lParam);
+            ScreenToClient(windowHandle, &ptMouse);
+            commandID = getCalculatorButton((WORD)ptMouse.x, (WORD)ptMouse.y);
+        }
+        if (commandID == 0)
+        {
+            WinHelpA((HWND)wParam, helpFilePath, HELP_WM_HELP, HELP_CONTEXT_DATA);
+            return 0;
+        }
+        bVar = handleContextHelp(mainCalculatorWindow, g_hInstance, lParam);
+        if (bVar)
+        {
+            if (commandID == STAT_BUTTON_ID && calculatorMode == 0)
+            {
+                commandID = STAT_ALT_BUTTON_ID;
+            }
+            if (commandID > MEMORY_BUTTON_START && commandID < MEMORY_BUTTON_END)
+            {
+                commandID = MEMORY_BUTTON_DEFAULT;
+            }
+            if (commandID > DIGIT_BUTTON_START && commandID < DIGIT_BUTTON_END)
+            {
+                commandID = DIGIT_BUTTON_DEFAULT;
+            }
+            WinHelpA((HWND)wParam, helpFilePath, HELP_CONTEXTMENU, commandID);
+            return 0;
+        }
+        break;
+
+    case WM_COMMAND:
+        commandID = LOWORD(wParam);
+        if (HIWORD(wParam) == 1 && commandID < MAX_COMMAND_ID)
+        {
+            if (commandID == ID_STAT_BUTTON && calculatorMode == 1)
+            {
+                commandID = ID_STAT_BUTTON_ALT;
+            }
+            for (int i = 0; i < 0x3d; i++)
+            {
+                if ((elementStateTable[i] >> 8 & 0xff) == commandID &&
+                    (elementStateTable[i] & 3) != calculatorMode)
+                {
+                    updateButtonState(commandID, 100);
+                    break;
+                }
+            }
+        }
+        if (commandID < 0x3d)
+        {
+            processButtonClick(commandID);
+        }
+        break;
+
+    case WM_INITMENUPOPUP:
+        if (IsClipboardFormatAvailable(CF_TEXT))
+        {
+            commandID = MF_ENABLED;
+        }
+        else
+        {
+            commandID = MF_GRAYED;
+        }
+        menuItemID = ID_EDIT_PASTE;
+        menuHandle = GetMenu(hWnd);
+        EnableMenuItem(menuHandle, menuItemID, commandID);
+        break;
+
+    case WM_CTLCOLORSTATIC:
+        iVar = GetDlgCtrlID((HWND)lParam);
+        if (iVar == 0x19d || iVar == 0x19e)
+        {
+            HBRUSH hBrush = GetSysColorBrush(COLOR_WINDOW);
+            DVar = GetSysColor(COLOR_WINDOW);
+            SetBkColor((HDC)wParam, DVar);
+            DVar = GetSysColor(COLOR_WINDOWTEXT);
+            SetTextColor((HDC)wParam, DVar);
+            return (LRESULT)hBrush;
+        }
+        break;
+
+    case WM_MOUSEMOVE:
+        mouseX = LOWORD(lParam);
+        mouseY = HIWORD(lParam);
+        if (g_nPressedButton != INVALID_BUTTON)
+        {
+            commandID = getCalculatorButton(mouseX, mouseY);
+            if (commandID == g_nPressedButton || isButtonPressed)
+            {
+                if (commandID == g_nPressedButton && isButtonPressed)
+                {
+                    updateButtonState(g_nPressedButton, BUTTON_STATE_DOWN);
+                    isButtonPressed = FALSE;
+                }
+            }
+            else
+            {
+                updateButtonState(g_nPressedButton, BUTTON_STATE_UP);
+                isButtonPressed = TRUE;
+            }
+        }
+        break;
+
+    case WM_LBUTTONDOWN:
+        mouseX = LOWORD(lParam);
+        mouseY = HIWORD(lParam);
+        commandID = getCalculatorButton(mouseX, mouseY);
+        if (commandID != 0)
+        {
+            g_nPressedButton = commandID;
+            updateButtonState(commandID, BUTTON_STATE_DOWN);
+            isButtonPressed = FALSE;
+            SetCapture(mainCalculatorWindow);
+        }
+        break;
+
+    case WM_LBUTTONUP:
+        ReleaseCapture();
+        mouseX = LOWORD(lParam);
+        mouseY = HIWORD(lParam);
+        commandID = getCalculatorButton(mouseX, mouseY);
+        if (commandID == g_nPressedButton)
+        {
+            if (commandID != 0)
+            {
+                updateButtonState(commandID, BUTTON_STATE_UP);
+                isButtonPressed = TRUE;
+                processButtonClick(commandID);
+            }
+        }
+        g_nPressedButton = INVALID_BUTTON;
+        break;
+
+    default:
+        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+    }
+
+    return result;
+}
+
+DWORD configureCodePageSettings(int requestedCodePage)
+{
+    DWORD activeCodePage = setupCodePage(requestedCodePage);
+    if (currentCodePage == activeCodePage) {
+        return 0;  // No change needed
+    }
+
+    if (activeCodePage != 0) {
+        // Check if the active code page is in the supported list
+        for (int i = 0; i < NUM_SUPPORTED_CODEPAGES; i++) {
+            if (supportedCodePages[i] == activeCodePage) {
+                // Initialize character type flags
+                memset(charTypeFlags, 0, sizeof(charTypeFlags));
+
+                // Set up character ranges for the code page
+                for (int flagIndex = 0; flagIndex < 4; flagIndex++) {
+                    byte* charRangePtr = &charRangeTable[i * 6 + flagIndex * 8];
+                    while (charRangePtr[0] != 0 && charRangePtr[1] != 0) {
+                        for (DWORD charIndex = charRangePtr[0]; charIndex <= charRangePtr[1]; charIndex++) {
+                            charTypeFlags[charIndex] |= 1 << flagIndex;
+                        }
+                        charRangePtr += 2;
+                    }
+                }
+
+                // Set up code page specific settings
+                currentCodePage = activeCodePage;
+                _codePageSpecificFlag = getPageSpecificFlag(activeCodePage);
+                customCharTypeFlag1 = customCharTypeTable1[i];
+                customCharTypeFlag2 = customCharTypeTable2[i];
+                customCharTypeFlag3 = customCharTypeTable3[i];
+                return 0;
+            }
+        }
+
+        // If not in the supported list, try to get CP info
+        CPINFO codepageInfo;
+        if (GetCPInfo(activeCodePage, &codepageInfo)) {
+            memset(charTypeFlags, 0, sizeof(charTypeFlags));
+
+            if (codepageInfo.MaxCharSize >= 2) {
+                // Set up lead byte ranges
+                for (BYTE* leadBytePtr = codepageInfo.LeadByte; leadBytePtr[0] && leadBytePtr[1]; leadBytePtr += 2) {
+                    for (DWORD i = leadBytePtr[0]; i <= leadBytePtr[1]; i++) {
+                        charTypeFlags[i] |= 4;  // Mark as lead byte
+                    }
+                }
+
+                // Mark single-byte characters
+                for (uint i = 1; i < 0xFF; i++) {
+                    charTypeFlags[i] |= 8;
+                }
+
+                currentCodePage = activeCodePage;
+                _codePageSpecificFlag = getPageSpecificFlag(activeCodePage);
+            }
+            else {
+                _codePageSpecificFlag = 0;
+                currentCodePage = 0;
+            }
+
+            customCharTypeFlag1 = customCharTypeFlag2 = customCharTypeFlag3 = 0;
+            return 0;
+        }
+
+        if (!isCustomCodePage) {
+            return ERROR_CODE;
+        }
+    }
+
+    resetCharacterTypeFlags();
+    return 0;
+}
+
 
 /*
  * initCalcState()
@@ -154,6 +450,7 @@ void initCalcState(void)
     // Initialize numeric values
     memset(calcState.accumulatedValue, 0, sizeof(calcState.accumulatedValue));
     calcState.appInstance = NULL;
+    calcState.currentPrecisionLevel = MAX_STANDARD_PRECISION;
     calcState.currentValueHighPart = 0;
     calcState.defaultPrecisionValue = 0;
     calcState.decimalSeparator = DEFAULT_DECIMAL_SEPARATOR;
@@ -169,6 +466,7 @@ void initCalcState(void)
     calcState.scientificNumber.exponent = 0;
     calcState.scientificNumber.mantissaLow = 0;
     calcState.scientificNumber.mantissaHigh = 0;
+    calcState.statisticsWindowOpen = FALSE;
     calcState.windowHandle = NULL;
 
     updateDecimalSeparator();
@@ -179,146 +477,65 @@ void initCalcState(void)
     //configureFPUPrecision();  // Configure floating-point unit precision
 }
 
-/*
- * WinMain
- *
- * This function serves as the Windows entry point for the calculator application.
- * It initializes the application, creates the main window, and runs the message loop
- * until the application is closed.
- *
- * The function performs the following tasks:
- * 1. Initializes the calculator state by calling initCalcState()
- * 2. Registers the calculator window class using registerCalcClass()
- * 3. Creates the main calculator window using initInstance()
- * 4. Enters the main message loop to process and dispatch Windows messages
- *
- * @param appInstance     Handle to the current instance of the application
- * @param unused          Always NULL for Win32 applications (legacy parameter)
- * @param commandLine     Command line arguments as a single string
- * @param windowMode      Controls how the window is to be shown (e.g., maximized)
- * @return                The value from the WM_QUIT message's wParam parameter
- */
-int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE unused, LPSTR commandLine, int windowMode)
+void initApplicationCodePage(void)
 {
-    MSG msg;
-    appInstance = calcState.appInstance;
-
-    // Initialize calculator state
-    initCalcState();
-
-    if (!registerCalcClass(calcState.appInstance))
-    {
-        MessageBoxA(NULL, "Window Registration Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
-        return 0;
-    }
-
-    if (!initInstance(calcState.appInstance, windowMode))
-    {
-        MessageBoxA(NULL, "Window Creation Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
-        return 0;
-    }
-
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    return (int)msg.wParam;
+    configureCodePageSettings(SYSTEM_CODE_PAGE);
 }
 
-/*
- * registerCalcClass
- *
- * This function registers the window class for the calculator application.
- * It sets up the window class attributes and registers it with the Windows system.
- *
- * The function performs the following tasks:
- * 1. Initializes a WNDCLASSEXA structure with zeroes
- * 2. Sets the window class style (CS_HREDRAW | CS_VREDRAW)
- * 3. Assigns the window procedure (calcWindowProc)
- * 4. Sets the application instance handle
- * 5. Loads default application icon and cursor
- * 6. Sets the window background color
- * 7. Assigns the class name from calcState
- * 8. Registers the window class with the Windows system
- *
- * @param appInstance     Handle to the current instance of the application
- * @return                The atom identifying the newly registered class, or 0 if registration fails
- */
-ATOM registerCalcClass(HINSTANCE appInstance)
+void initApplicationPath(void)
 {
-    WNDCLASSEXA wcex = { 0 };
+    char** pathComponents;
+    char* appPathBuffer;
+    int pathDataSize;
+    int componentCount;
 
-    wcex.cbSize = sizeof(WNDCLASSEXA);
-    wcex.style = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc = calcWindowProc;
-    wcex.cbClsExtra = 0;
-    wcex.cbWndExtra = 0;
-    wcex.hInstance = appInstance;
-    wcex.hIcon = LoadIconA(NULL, (LPCSTR)IDI_APPLICATION);
-    wcex.hCursor = LoadCursorA(NULL, (LPCSTR)IDC_ARROW);
-    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wcex.lpszMenuName = NULL;
-    wcex.lpszClassName = calcState.className;
-    wcex.hIconSm = LoadIconA(NULL, (LPCSTR)IDI_APPLICATION);
+    // Get the full path of the current executable (max 260 characters)
+    GetModuleFileNameA((HMODULE)0x0, &g_appPath, 0x104);
+    g_appPathPtr = &g_appPath;
+    appPathBuffer = &g_appPath;
 
-    return RegisterClassExA(&wcex);
-}
-
-/*
- * initInstance
- *
- * This function creates and initializes the main window for the calculator application.
- * It sets up the window, configures its properties, and prepares it for display.
- *
- * The function performs the following tasks:
- * 1. Creates the main window using CreateWindowExA with specified styles and dimensions
- * 2. Checks if window creation was successful
- * 3. Sets up a RECT structure for proper button measurement
- * 4. Uses MapDialogRect to convert dialog units to pixels
- * 5. Initializes the BUTTON_BASE_SIZE for consistent UI scaling
- * 6. Shows and updates the main window
- *
- * @param appInstance     Handle to the current instance of the application
- * @param windowMode      Controls how the window is to be shown (e.g., maximized, minimized)
- * @return                true if window creation and initialization succeed, false otherwise
- */
-bool initInstance(HINSTANCE appInstance, int windowMode)
-{
-    calcState.windowHandle = CreateWindowExA(
-        WS_EX_CLIENTEDGE,
-        calcState.className,
-        "Calculator",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 240, 320,
-        NULL, NULL, appInstance, NULL);
-
-    //For proper button measurement and initialization.
-    RECT windowRect;
-
-    if (calcState.windowHandle == NULL)
-    {
-        return false;
+    // If endOfMemoryTable is not empty, use it instead of the retrieved path
+    if (*endOfMemoryTable != '\0') {
+        appPathBuffer = endOfMemoryTable;
     }
 
-    // Set up initial rectangle
-    windowRect.left = 0;
-    windowRect.top = 0;
-    windowRect.right = 24;
-    windowRect.bottom = 18;
+    // First pass: count path components and calculate required memory
+    tokenizeString(appPathBuffer, (char**)0x0, (char*)0x0, &componentCount, &pathDataSize);
 
-    // Map dialog units to pixels
-    MapDialogRect(calcState.windowHandle, &windowRect);
+    // Allocate memory for path components and string data
+    pathComponents = (char**)allocateMemoryFromHeap(componentCount * 4 + pathDataSize);
+    if (pathComponents == (char**)0x0) {
+        showRunTimeError(8);  // Memory allocation error
+        return;
+    }
 
-    // Set the button base size
-    BUTTON_BASE_SIZE = windowRect.right;
+    // Second pass: actually tokenize the path
+    tokenizeString(appPathBuffer, pathComponents, (char*)(pathComponents + componentCount),
+        &componentCount, &pathDataSize);
 
-    ShowWindow(calcState.windowHandle, windowMode);
-    UpdateWindow(calcState.windowHandle);
-
-    return true;
+    // Store results in global variables
+    g_pathComponentsPtr = pathComponents;
+    g_pathComponentCount = componentCount - 1;
 }
 
+DWORD initCalcRuntime(int initializationFlags)
+{
+    int result;
+
+    // Call the calculator environment initialization function if it exists
+    if (g_initializeCalculatorEnvironmentPtr != NULL) {
+        (*g_initializeCalculatorEnvironmentPtr)();
+    }
+
+    // Initialize functions without return values
+    __initterm(&CALCULATOR_INIT_FUNCTIONS_START, &CALCULATION_INIT_FUNCTIONS_END);
+
+    // Initialize functions with return values and store the result
+    result = __initterm(&CALCULATOR_INIT_FUNCTIONS_WITH_RETURN_START,
+        &CALCULATOR_INIT_FUNCTIONS_WITH_RETURN_END);
+
+    return result;
+}
 /*
  * initColors
  *
@@ -515,13 +732,269 @@ void initColors(int forceUpdate)
     }
 }
 
-void handleCalculationError(int errorCode)
+void initEnvironmentVariables(void)
 {
-    LPCSTR errorMessage = getStatusCode(errorCode);
-    if (errorMessage != NULL) {
-        MessageBoxA(NULL, errorMessage, "Runtime Error", MB_ICONERROR);
+    int* envVarArray;
+    size_t stringLength;
+    size_t copyLength;
+    size_t remainingLength;
+    char* envString;
+    int envVarCount;
+    char* nextPos;
+    char* currentEnvVar;
+    char* sourcePtr;
+    char* destPtr;
+    char currentChar;
+
+    // Count the number of environment variables
+    envVarCount = 0;
+    envString = envStringStart;
+    while (*envString != '\0') {
+        if (*envString != '=') {
+            envVarCount++;
+        }
+        // Move to next environment string
+        while (*envString++ != '\0');
     }
+
+    // Allocate memory for environment variable pointers
+    envVarArray = (int*)allocateMemoryFromHeap((envVarCount + 1) * sizeof(int));
+    g_environmentVariables = envVarArray;
+    if (envVarArray == NULL) {
+        showRunTimeError(9);  // Memory allocation error
+        return;
+    }
+
+    // Process each environment variable
+    envString = envStringStart;
+    while (*envString != '\0') {
+        if (*envString != '=') {
+            // Calculate length of the environment string
+            stringLength = strlen(envString);
+
+            // Allocate memory for the environment string
+            *envVarArray = (int)allocateMemoryFromHeap(stringLength + 1);
+            if (*envVarArray == 0) {
+                showRunTimeError(9);  // Memory allocation error
+                return;
+            }
+
+            // Copy the environment string
+            memcpy((char*)*envVarArray, envString, stringLength + 1);
+            envVarArray++;
+        }
+        // Move to next environment string
+        envString += stringLength + 1;
+    }
+
+    // Null-terminate the environment variable array
+    *envVarArray = 0;
 }
+
+void initStandardStreams(void)
+{
+    STARTUPINFOA startupInfo;
+    UINT redirectionSize, tempValue;
+    UINT* sourcePtr, * flagPtr;
+    DWORD streamType;
+    HANDLE fileHandle;
+    int streamIndex;
+    HANDLE* handlePtr;
+    UINT* handleData;
+
+    GetStartupInfoA(&startupInfo);
+
+    // Check for stream redirection information
+    if (startupInfo.lpReserved2 != NULL) {
+        redirectionSize = *(UINT*)startupInfo.lpReserved2;
+        tempValue = (redirectionSize > MAX_STREAM_REDIRECTION_BUFFER_SIZE) ?
+            MAX_STREAM_REDIRECTION_BUFFER_SIZE : redirectionSize;
+
+        // Copy stream flags
+        flagPtr = (UINT*)&standardStreamFlags;
+        sourcePtr = (UINT*)startupInfo.lpReserved2;
+        for (UINT i = tempValue >> 2; i > 0; i--) {
+            *flagPtr++ = *sourcePtr++;
+        }
+        for (tempValue &= 3; tempValue > 0; tempValue--) {
+            *(BYTE*)flagPtr++ = *(BYTE*)sourcePtr++;
+        }
+
+        // Copy stream handles
+        tempValue = (redirectionSize > MAX_STREAM_REDIRECTION_BUFFER_SIZE) ?
+            MAX_STREAM_REDIRECTION_BUFFER_SIZE : redirectionSize;
+        handleData = (UINT*)(redirectionSize + 4 + (INT)startupInfo.lpReserved2);
+        UINT* handlePtr = (UINT*)&streamHandles;
+        for (tempValue &= 0xFFFFFFFC; tempValue > 0; tempValue--) {
+            *handlePtr++ = *handleData++;
+        }
+    }
+
+    // Initialize standard streams
+    streamIndex = 0;
+    handlePtr = (HANDLE*)&streamHandles;
+    do {
+        if (*handlePtr == INVALID_HANDLE_VALUE) {
+            streamType = (streamIndex == 0) ? STD_INPUT_HANDLE :
+                (streamIndex == 1) ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE;
+            fileHandle = GetStdHandle(streamType);
+            *handlePtr = fileHandle;
+            if (fileHandle != INVALID_HANDLE_VALUE) {
+                standardStreamFlags[streamIndex] = 0x81;  // Valid and open stream
+                streamType = GetFileType(fileHandle);
+                if ((streamType & 0x0003) == FILE_TYPE_CHAR) {
+                    standardStreamFlags[streamIndex] |= 0x40;  // Console
+                }
+                else if ((streamType & 0x0003) == FILE_TYPE_PIPE) {
+                    standardStreamFlags[streamIndex] |= 0x08;  // Pipe
+                }
+            }
+        }
+        else {
+            standardStreamFlags[streamIndex] |= 0x80;  // Already open
+        }
+        handlePtr++;
+        streamIndex++;
+    } while (handlePtr < (HANDLE*)&streamHandles[3]);
+}
+/*
+ * initInstance
+ *
+ * This function creates and initializes the main window for the calculator application.
+ * It sets up the window, configures its properties, and prepares it for display.
+ *
+ * The function performs the following tasks:
+ * 1. Creates the main window using CreateWindowExA with specified styles and dimensions
+ * 2. Checks if window creation was successful
+ * 3. Sets up a RECT structure for proper button measurement
+ * 4. Uses MapDialogRect to convert dialog units to pixels
+ * 5. Initializes the BUTTON_BASE_SIZE for consistent UI scaling
+ * 6. Shows and updates the main window
+ *
+ * @param appInstance     Handle to the current instance of the application
+ * @param windowMode      Controls how the window is to be shown (e.g., maximized, minimized)
+ * @return                true if window creation and initialization succeed, false otherwise
+ */
+bool initInstance(HINSTANCE appInstance, int windowMode)
+{
+    calcState.windowHandle = CreateWindowExA(
+        WS_EX_CLIENTEDGE,
+        calcState.className,
+        "Calculator",
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, 240, 320,
+        NULL, NULL, appInstance, NULL);
+
+    //For proper button measurement and initialization.
+    RECT windowRect;
+
+    if (calcState.windowHandle == NULL)
+    {
+        return false;
+    }
+
+    // Set up initial rectangle
+    windowRect.left = 0;
+    windowRect.top = 0;
+    windowRect.right = 24;
+    windowRect.bottom = 18;
+
+    // Map dialog units to pixels
+    MapDialogRect(calcState.windowHandle, &windowRect);
+
+    // Set the button base size
+    BUTTON_BASE_SIZE = windowRect.right;
+
+    ShowWindow(calcState.windowHandle, windowMode);
+    UpdateWindow(calcState.windowHandle);
+
+    return true;
+}
+
+DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
+{
+    int buttonWidth = (BUTTON_BASE_SIZE * 4) / 3 + 5;
+    int horizontalPosition = 0;
+    int rowIndex = (BUTTON_BASE_SIZE * 4) / 3 + 1;
+    int modeOffset = calcMode * 4;
+
+    // Check if the click is in the main button area
+    int topEdge = ((BUTTON_ROW_CONFIG + BUTTON_VERTICAL_SPACING) * BUTTON_SCALING_FACTOR + 7) >> 3;
+    int bottomEdge = (BUTTON_ROW_CONFIG * BUTTON_SCALING_FACTOR + 7) >> 3;
+
+    if (mouseY >= topEdge && mouseY < bottomEdge) {
+        int verticalPosition = VERTICAL_OFFSET + 6;
+        int leftEdge = (BUTTON_COLUMN_CONFIG * BUTTON_SCALING_FACTOR + 7) >> 3;
+        int rightEdge = ((BUTTON_COLUMN_CONFIG + 0x56) * BUTTON_SCALING_FACTOR + 7) >> 3;
+
+        if (mouseX >= leftEdge && mouseX <= rightEdge) {
+            // Find the column of the clicked button
+            int column = 0;
+            bool buttonFound = false;
+            int buttonsPerRow = BUTTONS_PER_ROW[calcMode];
+
+            while (column < buttonsPerRow && !buttonFound) {
+                if (mouseY >= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) &&
+                    mouseY <= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) + ((14 * BUTTON_SCALING_FACTOR + 7) >> 3)) {
+                    buttonFound = true;
+                }
+                column++;
+            }
+
+            if (buttonFound && column <= buttonsPerRow) {
+                // Find the row of the clicked button
+                int row = 0;
+                bool rowFound = false;
+                int buttonCount = BUTTON_COUNT_PER_MODE[calcMode];
+
+                while (row < buttonCount && !rowFound) {
+                    horizontalPosition = adjustButtonHorizontalPosition(horizontalPosition, row, 0);
+                    if (mouseX >= horizontalPosition + verticalPosition &&
+                        mouseX <= horizontalPosition + verticalPosition + BUTTON_BASE_SIZE) {
+                        rowFound = true;
+                    }
+                    horizontalPosition += BUTTON_BASE_SIZE + 4;
+                    row++;
+                }
+
+                if (rowFound) {
+                    // Calculate button index and return button ID
+                    int buttonIndex = buttonsPerRow * (row - 1) + column - 1;
+                    int elementIndex = 0;
+                    uint* statePtr = &elementStateTable;
+
+                    while (buttonIndex >= 0 && statePtr < &END_OF_ELEMENT_STATE_TABLE) {
+                        if ((*statePtr & 3) != calculatorMode) {
+                            buttonIndex--;
+                        }
+                        statePtr++;
+                        elementIndex++;
+                    }
+
+                    byte rawButtonId = ((byte*)BUTTON_ID_MAP)[elementIndex * 4];
+                    buttonId = (uint)rawButtonId;
+                    return buttonId;
+                }
+            }
+        }
+    }
+    else {
+        // Check for special buttons at the top
+        RECT clientRect;
+        GetClientRect(mainCalculatorWindow, &clientRect);
+
+        for (int i = 0; i < 3; i++) {
+            if (mouseX <= clientRect.right - horizontalPosition - (calculatorMode == 0 ? 1 : 0) - 10 &&
+                mouseX > clientRect.right - horizontalPosition - rowIndex - (calculatorMode == 0 ? 1 : 0) - 10) {
+                return i + SPECIAL_BUTTON_OFFSET;
+            }
+            horizontalPosition += buttonWidth;
+        }
+    }
+
+    return 0;  // No button found
+}
+
 
 /*
  * getStatusCode()
@@ -544,6 +1017,14 @@ const char* getStatusCode(int statusCode)
     }
     else {
         return NULL; // No matching status message found
+    }
+}
+
+void handleCalculationError(int errorCode)
+{
+    LPCSTR errorMessage = getStatusCode(errorCode);
+    if (errorMessage != NULL) {
+        MessageBoxA(NULL, errorMessage, "Runtime Error", MB_ICONERROR);
     }
 }
 
@@ -654,6 +1135,66 @@ void refreshInterface(void)
     ShowCursor(FALSE);
 }
 
+bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
+{
+    // ID do recurso do menu de contexto
+    const UINT CONTEXT_MENU_RESOURCE_ID = 4;
+
+    // Flags para o TrackPopupMenuEx
+    const UINT TRACK_POPUP_FLAGS = TPM_RETURNCMD | TPM_RIGHTBUTTON;
+
+    // Carrega o menu de contexto dos recursos da aplica��o
+    HMENU menuHandle = LoadMenuA(hInstance, MAKEINTRESOURCE(CONTEXT_MENU_RESOURCE_ID));
+    if (menuHandle == NULL) {
+        // Falha ao carregar o menu
+        return false;
+    }
+
+    // Obt�m o primeiro (e provavelmente �nico) submenu
+    HMENU hPopupMenu = GetSubMenu(menuHandle, 0);
+    if (hPopupMenu == NULL) {
+        // Falha ao obter o submenu
+        DestroyMenu(menuHandle);
+        return false;
+    }
+
+    // Extrai as coordenadas x e y do mouse do par�metro message
+    WORD xPos = LOWORD(message);
+    WORD yPos = HIWORD(message);
+
+    // Exibe o menu de contexto na posi��o do mouse
+    UINT result = TrackPopupMenuEx(
+        hPopupMenu,
+        TRACK_POPUP_FLAGS,
+        xPos,
+        yPos,
+        hwnd,
+        NULL  // N�o usamos TPMPARAMS neste caso
+    );
+
+    // Limpa o menu da mem�ria
+    DestroyMenu(menuHandle);
+
+    // Verifica se o item "What's This?" foi selecionado (ID 8)
+    return (result == 8);
+}
+
+
+BOOL hasDecimalSeparator(const char* str) {
+    if (str == NULL) {
+        return FALSE;
+    }
+
+    while (*str != '\0') {
+        if (*str == calcState.decimalSeparator) {
+            return TRUE;
+        }
+        str++;
+    }
+
+    return FALSE;
+}
+
 /*
  * processButtonClick
  *
@@ -749,7 +1290,8 @@ void processButtonClick(uint currentKeyPressed)
             if (calcState.errorState == 0) {
                 updateDisplay();
             }
-        } else {
+        }
+        else {
             MessageBeep(0);
         }
         calcState.isInverseMode = false;
@@ -760,7 +1302,8 @@ void processButtonClick(uint currentKeyPressed)
     // Handle parentheses
     if (currentKeyPressed == IDC_BUTTON_LPAR) {
         pushOperator(IDC_BUTTON_LPAR, 0); // Push left parenthesis onto the stack
-    } else if (currentKeyPressed == IDC_BUTTON_RPAR) {
+    }
+    else if (currentKeyPressed == IDC_BUTTON_RPAR) {
         // Evaluate expressions until we find a left parenthesis
         while (calcState.operatorStackPointer > 0 && getTopOperator() != IDC_BUTTON_LPAR) {
             if (calcState.operatorStackPointer > 0) {
@@ -773,7 +1316,8 @@ void processButtonClick(uint currentKeyPressed)
         }
         if (calcState.operatorStackPointer > 0 && getTopOperator() == IDC_BUTTON_LPAR) {
             popOperator(); // Remove the left parenthesis
-        } else {
+        }
+        else {
             MessageBeep(0); // Error: Unmatched closing parenthesis
             return;
         }
@@ -790,7 +1334,8 @@ void processButtonClick(uint currentKeyPressed)
                 if (newOperatorPrecedence > currentOperatorPrecedence && calcState.mode == STANDARD_MODE) {
                     if (calcState.operatorStackPointer < MAX_OPERATOR_STACK) {
                         pushOperator(calcState.currentOperator, calcState.lastValue);
-                    } else {
+                    }
+                    else {
                         calcState.operatorStackPointer = MAX_OPERATOR_STACK - 1;
                         MessageBeep(0);
                     }
@@ -824,7 +1369,8 @@ void processButtonClick(uint currentKeyPressed)
             calcState.isLastInputComplete = true;
             calcState.accumulatedValue = 0.0;
             calcState.currentOperator = currentKeyPressed;
-        } else {
+        }
+        else {
             calcState.lastValue = calcState.accumulatedValue;
             calcState.currentOperator = currentKeyPressed;
             calcState.accumulatedValue = 0.0;
@@ -841,357 +1387,43 @@ void processButtonClick(uint currentKeyPressed)
     updateDisplay();
 }
 
-bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
+/*
+ * registerCalcClass
+ *
+ * This function registers the window class for the calculator application.
+ * It sets up the window class attributes and registers it with the Windows system.
+ *
+ * The function performs the following tasks:
+ * 1. Initializes a WNDCLASSEXA structure with zeroes
+ * 2. Sets the window class style (CS_HREDRAW | CS_VREDRAW)
+ * 3. Assigns the window procedure (calcWindowProc)
+ * 4. Sets the application instance handle
+ * 5. Loads default application icon and cursor
+ * 6. Sets the window background color
+ * 7. Assigns the class name from calcState
+ * 8. Registers the window class with the Windows system
+ *
+ * @param appInstance     Handle to the current instance of the application
+ * @return                The atom identifying the newly registered class, or 0 if registration fails
+ */
+ATOM registerCalcClass(HINSTANCE appInstance)
 {
-    // ID do recurso do menu de contexto
-    const UINT CONTEXT_MENU_RESOURCE_ID = 4;
+    WNDCLASSEXA wcex = { 0 };
 
-    // Flags para o TrackPopupMenuEx
-    const UINT TRACK_POPUP_FLAGS = TPM_RETURNCMD | TPM_RIGHTBUTTON;
+    wcex.cbSize = sizeof(WNDCLASSEXA);
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc = calcWindowProc;
+    wcex.cbClsExtra = 0;
+    wcex.cbWndExtra = 0;
+    wcex.hInstance = appInstance;
+    wcex.hIcon = LoadIconA(NULL, (LPCSTR)IDI_APPLICATION);
+    wcex.hCursor = LoadCursorA(NULL, (LPCSTR)IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcex.lpszMenuName = NULL;
+    wcex.lpszClassName = calcState.className;
+    wcex.hIconSm = LoadIconA(NULL, (LPCSTR)IDI_APPLICATION);
 
-    // Carrega o menu de contexto dos recursos da aplica��o
-    HMENU menuHandle = LoadMenuA(hInstance, MAKEINTRESOURCE(CONTEXT_MENU_RESOURCE_ID));
-    if (menuHandle == NULL) {
-        // Falha ao carregar o menu
-        return false;
-    }
-
-    // Obt�m o primeiro (e provavelmente �nico) submenu
-    HMENU hPopupMenu = GetSubMenu(menuHandle, 0);
-    if (hPopupMenu == NULL) {
-        // Falha ao obter o submenu
-        DestroyMenu(menuHandle);
-        return false;
-    }
-
-    // Extrai as coordenadas x e y do mouse do par�metro message
-    WORD xPos = LOWORD(message);
-    WORD yPos = HIWORD(message);
-
-    // Exibe o menu de contexto na posi��o do mouse
-    UINT result = TrackPopupMenuEx(
-        hPopupMenu,
-        TRACK_POPUP_FLAGS,
-        xPos,
-        yPos,
-        hwnd,
-        NULL  // N�o usamos TPMPARAMS neste caso
-    );
-
-    // Limpa o menu da mem�ria
-    DestroyMenu(menuHandle);
-
-    // Verifica se o item "What's This?" foi selecionado (ID 8)
-    return (result == 8);
-}
-
-DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
-{
-    int buttonWidth = (BUTTON_BASE_SIZE * 4) / 3 + 5;
-    int horizontalPosition = 0;
-    int rowIndex = (BUTTON_BASE_SIZE * 4) / 3 + 1;
-    int modeOffset = calcMode * 4;
-
-    // Check if the click is in the main button area
-    int topEdge = ((BUTTON_ROW_CONFIG + BUTTON_VERTICAL_SPACING) * BUTTON_SCALING_FACTOR + 7) >> 3;
-    int bottomEdge = (BUTTON_ROW_CONFIG * BUTTON_SCALING_FACTOR + 7) >> 3;
-
-    if (mouseY >= topEdge && mouseY < bottomEdge) {
-        int verticalPosition = VERTICAL_OFFSET + 6;
-        int leftEdge = (BUTTON_COLUMN_CONFIG * BUTTON_SCALING_FACTOR + 7) >> 3;
-        int rightEdge = ((BUTTON_COLUMN_CONFIG + 0x56) * BUTTON_SCALING_FACTOR + 7) >> 3;
-
-        if (mouseX >= leftEdge && mouseX <= rightEdge) {
-            // Find the column of the clicked button
-            int column = 0;
-            bool buttonFound = false;
-            int buttonsPerRow = BUTTONS_PER_ROW[calcMode];
-
-            while (column < buttonsPerRow && !buttonFound) {
-                if (mouseY >= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) &&
-                    mouseY <= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) + ((14 * BUTTON_SCALING_FACTOR + 7) >> 3)) {
-                    buttonFound = true;
-                }
-                column++;
-            }
-
-            if (buttonFound && column <= buttonsPerRow) {
-                // Find the row of the clicked button
-                int row = 0;
-                bool rowFound = false;
-                int buttonCount = BUTTON_COUNT_PER_MODE[calcMode];
-
-                while (row < buttonCount && !rowFound) {
-                    horizontalPosition = adjustButtonHorizontalPosition(horizontalPosition, row, 0);
-                    if (mouseX >= horizontalPosition + verticalPosition &&
-                        mouseX <= horizontalPosition + verticalPosition + BUTTON_BASE_SIZE) {
-                        rowFound = true;
-                    }
-                    horizontalPosition += BUTTON_BASE_SIZE + 4;
-                    row++;
-                }
-
-                if (rowFound) {
-                    // Calculate button index and return button ID
-                    int buttonIndex = buttonsPerRow * (row - 1) + column - 1;
-                    int elementIndex = 0;
-                    uint* statePtr = &elementStateTable;
-
-                    while (buttonIndex >= 0 && statePtr < &END_OF_ELEMENT_STATE_TABLE) {
-                        if ((*statePtr & 3) != calculatorMode) {
-                            buttonIndex--;
-                        }
-                        statePtr++;
-                        elementIndex++;
-                    }
-
-                    byte rawButtonId = ((byte*)BUTTON_ID_MAP)[elementIndex * 4];
-                    buttonId = (uint)rawButtonId;
-                    return buttonId;
-                }
-            }
-        }
-    }
-    else {
-        // Check for special buttons at the top
-        RECT clientRect;
-        GetClientRect(mainCalculatorWindow, &clientRect);
-
-        for (int i = 0; i < 3; i++) {
-            if (mouseX <= clientRect.right - horizontalPosition - (calculatorMode == 0 ? 1 : 0) - 10 &&
-                mouseX > clientRect.right - horizontalPosition - rowIndex - (calculatorMode == 0 ? 1 : 0) - 10) {
-                return i + SPECIAL_BUTTON_OFFSET;
-            }
-            horizontalPosition += buttonWidth;
-        }
-    }
-
-    return 0;  // No button found
-}
-
-LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    LRESULT result = 0;
-    int iVar;
-    BOOL bVar;
-    HMENU menuHandle;
-    DWORD DVar;
-    UINT commandID;
-    POINT ptMouse;
-    UINT menuItemID;
-    WORD mouseX, mouseY;
-    static BOOL isButtonPressed = FALSE;
-
-    switch (uMsg)
-    {
-    case WM_ACTIVATE:
-        iVar = (wParam == WA_ACTIVE) ? SW_SHOW : SW_HIDE;
-        if (scientificModeWindow != NULL)
-        {
-            ShowWindow(scientificModeWindow, iVar);
-        }
-        break;
-
-    case WM_DESTROY:
-        WinHelpA(mainCalculatorWindow, helpFilePath, HELP_QUIT, 0);
-        PostQuitMessage(0);
-        return 0;
-
-    case WM_SYSCOLORCHANGE:
-        if (lParam == 0 ||
-            lstrcmpA((LPCSTR)lParam, "colors") == 0 ||
-            lstrcmpA((LPCSTR)lParam, "scheme") == 0)
-        {
-            initColors(0);
-        }
-        break;
-
-    case WM_PAINT:
-        refreshInterface();
-        if (errorState == 0)
-        {
-            if (currentKeyPressed < KEY_RANGE_START || currentKeyPressed > KEY_RANGE_END)
-            {
-                updateDisplay();
-            }
-            else
-            {
-                DWORD tempHighPart = currentValueHighPart;
-                DWORD tempAccumulated = accumulatedValue;
-                currentValueHighPart = defaultPrecisionValue;
-                accumulatedValue = lastValue;
-                updateDisplay();
-                accumulatedValue = tempAccumulated;
-                currentValueHighPart = tempHighPart;
-            }
-        }
-        else
-        {
-            handleCalculationError(errorCodeBase);
-        }
-        break;
-
-    case WM_CLOSE:
-        DestroyWindow(mainCalculatorWindow);
-        break;
-
-    case WM_HELP:
-        commandID = 0;
-        if (hWnd == (HWND)wParam)
-        {
-            ptMouse.x = GET_X_LPARAM(lParam);
-            ptMouse.y = GET_Y_LPARAM(lParam);
-            ScreenToClient(hWnd, &ptMouse);
-            commandID = getCalculatorButton((WORD)ptMouse.x, (WORD)ptMouse.y);
-        }
-        if (commandID == 0)
-        {
-            WinHelpA((HWND)wParam, helpFilePath, HELP_WM_HELP, HELP_CONTEXT_DATA);
-            return 0;
-        }
-        bVar = handleContextHelp(mainCalculatorWindow, g_hInstance, lParam);
-        if (bVar)
-        {
-            if (commandID == STAT_BUTTON_ID && calculatorMode == 0)
-            {
-                commandID = STAT_ALT_BUTTON_ID;
-            }
-            if (commandID > MEMORY_BUTTON_START && commandID < MEMORY_BUTTON_END)
-            {
-                commandID = MEMORY_BUTTON_DEFAULT;
-            }
-            if (commandID > DIGIT_BUTTON_START && commandID < DIGIT_BUTTON_END)
-            {
-                commandID = DIGIT_BUTTON_DEFAULT;
-            }
-            WinHelpA((HWND)wParam, helpFilePath, HELP_CONTEXTMENU, commandID);
-            return 0;
-        }
-        break;
-
-    case WM_COMMAND:
-        commandID = LOWORD(wParam);
-        if (HIWORD(wParam) == 1 && commandID < MAX_COMMAND_ID)
-        {
-            if (commandID == ID_STAT_BUTTON && calculatorMode == 1)
-            {
-                commandID = ID_STAT_BUTTON_ALT;
-            }
-            for (int i = 0; i < 0x3d; i++)
-            {
-                if ((elementStateTable[i] >> 8 & 0xff) == commandID &&
-                    (elementStateTable[i] & 3) != calculatorMode)
-                {
-                    updateButtonState(commandID, 100);
-                    break;
-                }
-            }
-        }
-        if (commandID < 0x3d)
-        {
-            processButtonClick(commandID);
-        }
-        break;
-
-    case WM_INITMENUPOPUP:
-        if (IsClipboardFormatAvailable(CF_TEXT))
-        {
-            commandID = MF_ENABLED;
-        }
-        else
-        {
-            commandID = MF_GRAYED;
-        }
-        menuItemID = ID_EDIT_PASTE;
-        menuHandle = GetMenu(hWnd);
-        EnableMenuItem(menuHandle, menuItemID, commandID);
-        break;
-
-    case WM_CTLCOLORSTATIC:
-        iVar = GetDlgCtrlID((HWND)lParam);
-        if (iVar == 0x19d || iVar == 0x19e)
-        {
-            HBRUSH hBrush = GetSysColorBrush(COLOR_WINDOW);
-            DVar = GetSysColor(COLOR_WINDOW);
-            SetBkColor((HDC)wParam, DVar);
-            DVar = GetSysColor(COLOR_WINDOWTEXT);
-            SetTextColor((HDC)wParam, DVar);
-            return (LRESULT)hBrush;
-        }
-        break;
-
-    case WM_MOUSEMOVE:
-        mouseX = LOWORD(lParam);
-        mouseY = HIWORD(lParam);
-        if (g_nPressedButton != INVALID_BUTTON)
-        {
-            commandID = getCalculatorButton(mouseX, mouseY);
-            if (commandID == g_nPressedButton || isButtonPressed)
-            {
-                if (commandID == g_nPressedButton && isButtonPressed)
-                {
-                    updateButtonState(g_nPressedButton, BUTTON_STATE_DOWN);
-                    isButtonPressed = FALSE;
-                }
-            }
-            else
-            {
-                updateButtonState(g_nPressedButton, BUTTON_STATE_UP);
-                isButtonPressed = TRUE;
-            }
-        }
-        break;
-
-    case WM_LBUTTONDOWN:
-        mouseX = LOWORD(lParam);
-        mouseY = HIWORD(lParam);
-        commandID = getCalculatorButton(mouseX, mouseY);
-        if (commandID != 0)
-        {
-            g_nPressedButton = commandID;
-            updateButtonState(commandID, BUTTON_STATE_DOWN);
-            isButtonPressed = FALSE;
-            SetCapture(mainCalculatorWindow);
-        }
-        break;
-
-    case WM_LBUTTONUP:
-        ReleaseCapture();
-        mouseX = LOWORD(lParam);
-        mouseY = HIWORD(lParam);
-        commandID = getCalculatorButton(mouseX, mouseY);
-        if (commandID == g_nPressedButton)
-        {
-            if (commandID != 0)
-            {
-                updateButtonState(commandID, BUTTON_STATE_UP);
-                isButtonPressed = TRUE;
-                processButtonClick(commandID);
-            }
-        }
-        g_nPressedButton = INVALID_BUTTON;
-        break;
-
-    default:
-        return DefWindowProcA(hWnd, uMsg, wParam, lParam);
-    }
-
-    return result;
-}
-
-BOOL hasDecimalSeparator(const char* str) {
-    if (str == NULL) {
-        return FALSE;
-    }
-
-    while (*str != '\0') {
-        if (*str == calcState.decimalSeparator) {
-            return TRUE;
-        }
-        str++;
-    }
-
-    return FALSE;
+    return RegisterClassExA(&wcex);
 }
 
 /*
@@ -1365,6 +1597,23 @@ void updateButtonState(uint buttonId, int state)
     TextOutA(deviceContext, textX, textY, buttonText, textLength);
 }
 
+void updateDecimalSeparator()
+{
+    int separatorPosition;
+
+    separatorPosition = calcState.decimalSeparatorBuffer[0];
+    if (separatorPosition == 0) {
+        if (calcState.currentValueHighPart == 0) {
+            separatorPosition = 2;
+        }
+        else {
+            separatorPosition = calcState.currentValueHighPart + 1;
+        }
+    }
+    calcState.decimalSeparator = calcState.decimalSeparatorBuffer[0];
+    calcState.decimalSeparatorBuffer[1] = '\0';
+}
+
 void updateDisplay(void)
 {
     char displayBuffer[64];
@@ -1404,287 +1653,154 @@ void updateDisplay(void)
     SetDlgItemTextA(mainCalculatorWindow, calculatorMode + 0x19d, resultString);
 }
 
-void adjustMemoryAllocation(void)
-{
-    if (isScientificMode() && currentPrecisionLevel < MAX_STANDARD_PRECISION) {
-        currentAllocationSize = INITIAL_MEMORY_SIZE;
-        minimumAllocationSize = EXTENDED_MEMORY_SIZE;
-    }
-}
 
-void initStandardStreams(void)
-{
-    STARTUPINFOA startupInfo;
-    UINT redirectionSize, tempValue;
-    UINT* sourcePtr, * flagPtr;
-    DWORD streamType;
-    HANDLE fileHandle;
-    int streamIndex;
-    HANDLE* handlePtr;
-    UINT* handleData;
+/*
+ * statisticsWindowProc
+ *
+ * This is the dialog box procedure for the statistics window. It handles
+ * messages for the window, including button clicks, closing the window,
+ * and potentially other events. It interacts with the main calculator
+ * state (`calcState`) and the statistics data structure.
+ *
+ * @param window        Handle to the statistics window dialog box.
+ * @param message     The message identifier.
+ * @param wParam       Additional message-specific information.
+ * @param lParam       Additional message-specific information.
+ * @return            TRUE if the message was processed, FALSE otherwise.
+ */
+BOOL CALLBACK statisticsWindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam) {
+    static HWND hwndStatisticsDisplay;
+    static int  selectedIndex = -1;
+    static char selectedDataPointStr[MAX_DISPLAY_DIGITS] = { 0 };
+    static int dataPointCount = 0;
 
-    GetStartupInfoA(&startupInfo);
+    switch (message) {
+    case WM_INITDIALOG: {
+        // Get the handle to the statistics display listbox
+        hwndStatisticsDisplay = GetDlgItem(windowHandle, ID_STAT_BUTTON);
 
-    // Check for stream redirection information
-    if (startupInfo.lpReserved2 != NULL) {
-        redirectionSize = *(UINT*)startupInfo.lpReserved2;
-        tempValue = (redirectionSize > MAX_STREAM_REDIRECTION_BUFFER_SIZE) ?
-            MAX_STREAM_REDIRECTION_BUFFER_SIZE : redirectionSize;
-
-        // Copy stream flags
-        flagPtr = (UINT*)&standardStreamFlags;
-        sourcePtr = (UINT*)startupInfo.lpReserved2;
-        for (UINT i = tempValue >> 2; i > 0; i--) {
-            *flagPtr++ = *sourcePtr++;
-        }
-        for (tempValue &= 3; tempValue > 0; tempValue--) {
-            *(BYTE*)flagPtr++ = *(BYTE*)sourcePtr++;
-        }
-
-        // Copy stream handles
-        tempValue = (redirectionSize > MAX_STREAM_REDIRECTION_BUFFER_SIZE) ?
-            MAX_STREAM_REDIRECTION_BUFFER_SIZE : redirectionSize;
-        handleData = (UINT*)(redirectionSize + 4 + (INT)startupInfo.lpReserved2);
-        UINT* handlePtr = (UINT*)&streamHandles;
-        for (tempValue &= 0xFFFFFFFC; tempValue > 0; tempValue--) {
-            *handlePtr++ = *handleData++;
-        }
+        // Initialize statistics display
+        updateStatisticsDisplay(windowHandle);
+        return TRUE;
     }
 
-    // Initialize standard streams
-    streamIndex = 0;
-    handlePtr = (HANDLE*)&streamHandles;
-    do {
-        if (*handlePtr == INVALID_HANDLE_VALUE) {
-            streamType = (streamIndex == 0) ? STD_INPUT_HANDLE :
-                (streamIndex == 1) ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE;
-            fileHandle = GetStdHandle(streamType);
-            *handlePtr = fileHandle;
-            if (fileHandle != INVALID_HANDLE_VALUE) {
-                standardStreamFlags[streamIndex] = 0x81;  // Valid and open stream
-                streamType = GetFileType(fileHandle);
-                if ((streamType & 0x0003) == FILE_TYPE_CHAR) {
-                    standardStreamFlags[streamIndex] |= 0x40;  // Console
-                }
-                else if ((streamType & 0x0003) == FILE_TYPE_PIPE) {
-                    standardStreamFlags[streamIndex] |= 0x08;  // Pipe
-                }
-            }
-        }
-        else {
-            standardStreamFlags[streamIndex] |= 0x80;  // Already open
-        }
-        handlePtr++;
-        streamIndex++;
-    } while (handlePtr < (HANDLE*)&streamHandles[3]);
-}
-
-void initApplicationCodePage(void)
-{
-    configureCodePageSettings(SYSTEM_CODE_PAGE);
-}
-
-DWORD configureCodePageSettings(int requestedCodePage)
-{
-    DWORD activeCodePage = setupCodePage(requestedCodePage);
-    if (currentCodePage == activeCodePage) {
-        return 0;  // No change needed
-    }
-
-    if (activeCodePage != 0) {
-        // Check if the active code page is in the supported list
-        for (int i = 0; i < NUM_SUPPORTED_CODEPAGES; i++) {
-            if (supportedCodePages[i] == activeCodePage) {
-                // Initialize character type flags
-                memset(charTypeFlags, 0, sizeof(charTypeFlags));
-
-                // Set up character ranges for the code page
-                for (int flagIndex = 0; flagIndex < 4; flagIndex++) {
-                    byte* charRangePtr = &charRangeTable[i * 6 + flagIndex * 8];
-                    while (charRangePtr[0] != 0 && charRangePtr[1] != 0) {
-                        for (DWORD charIndex = charRangePtr[0]; charIndex <= charRangePtr[1]; charIndex++) {
-                            charTypeFlags[charIndex] |= 1 << flagIndex;
-                        }
-                        charRangePtr += 2;
-                    }
-                }
-
-                // Set up code page specific settings
-                currentCodePage = activeCodePage;
-                _codePageSpecificFlag = getPageSpecificFlag(activeCodePage);
-                customCharTypeFlag1 = customCharTypeTable1[i];
-                customCharTypeFlag2 = customCharTypeTable2[i];
-                customCharTypeFlag3 = customCharTypeTable3[i];
-                return 0;
-            }
-        }
-
-        // If not in the supported list, try to get CP info
-        CPINFO codepageInfo;
-        if (GetCPInfo(activeCodePage, &codepageInfo)) {
-            memset(charTypeFlags, 0, sizeof(charTypeFlags));
-
-            if (codepageInfo.MaxCharSize >= 2) {
-                // Set up lead byte ranges
-                for (BYTE* leadBytePtr = codepageInfo.LeadByte; leadBytePtr[0] && leadBytePtr[1]; leadBytePtr += 2) {
-                    for (DWORD i = leadBytePtr[0]; i <= leadBytePtr[1]; i++) {
-                        charTypeFlags[i] |= 4;  // Mark as lead byte
-                    }
-                }
-
-                // Mark single-byte characters
-                for (uint i = 1; i < 0xFF; i++) {
-                    charTypeFlags[i] |= 8;
-                }
-
-                currentCodePage = activeCodePage;
-                _codePageSpecificFlag = getPageSpecificFlag(activeCodePage);
+    case WM_COMMAND:
+        switch (LOWORD(wParam)) {
+        case IDC_BUTTON_STAT_RED: {
+            // Copy selected data point to calculator
+            if (selectedIndex != -1) {
+                strcpy(calcState.accumulatedValue, selectedDataPointStr);
+                updateDisplay(); // Update the main calculator display
             }
             else {
-                _codePageSpecificFlag = 0;
-                currentCodePage = 0;
+                MessageBeep(0); // No item selected
             }
-
-            customCharTypeFlag1 = customCharTypeFlag2 = customCharTypeFlag3 = 0;
-            return 0;
+            break;
         }
 
-        if (!isCustomCodePage) {
-            return ERROR_CODE;
-        }
-    }
-
-    resetCharacterTypeFlags();
-    return 0;
-}
-
-void initApplicationPath(void)
-{
-    char** pathComponents;
-    char* appPathBuffer;
-    int pathDataSize;
-    int componentCount;
-
-    // Get the full path of the current executable (max 260 characters)
-    GetModuleFileNameA((HMODULE)0x0, &g_appPath, 0x104);
-    g_appPathPtr = &g_appPath;
-    appPathBuffer = &g_appPath;
-
-    // If endOfMemoryTable is not empty, use it instead of the retrieved path
-    if (*endOfMemoryTable != '\0') {
-        appPathBuffer = endOfMemoryTable;
-    }
-
-    // First pass: count path components and calculate required memory
-    tokenizeString(appPathBuffer, (char**)0x0, (char*)0x0, &componentCount, &pathDataSize);
-
-    // Allocate memory for path components and string data
-    pathComponents = (char**)allocateMemoryFromHeap(componentCount * 4 + pathDataSize);
-    if (pathComponents == (char**)0x0) {
-        showRunTimeError(8);  // Memory allocation error
-        return;
-    }
-
-    // Second pass: actually tokenize the path
-    tokenizeString(appPathBuffer, pathComponents, (char*)(pathComponents + componentCount),
-        &componentCount, &pathDataSize);
-
-    // Store results in global variables
-    g_pathComponentsPtr = pathComponents;
-    g_pathComponentCount = componentCount - 1;
-}
-
-void initEnvironmentVariables(void)
-{
-    int* envVarArray;
-    size_t stringLength;
-    size_t copyLength;
-    size_t remainingLength;
-    char* envString;
-    int envVarCount;
-    char* nextPos;
-    char* currentEnvVar;
-    char* sourcePtr;
-    char* destPtr;
-    char currentChar;
-
-    // Count the number of environment variables
-    envVarCount = 0;
-    envString = envStringStart;
-    while (*envString != '\0') {
-        if (*envString != '=') {
-            envVarCount++;
-        }
-        // Move to next environment string
-        while (*envString++ != '\0');
-    }
-
-    // Allocate memory for environment variable pointers
-    envVarArray = (int*)allocateMemoryFromHeap((envVarCount + 1) * sizeof(int));
-    g_environmentVariables = envVarArray;
-    if (envVarArray == NULL) {
-        showRunTimeError(9);  // Memory allocation error
-        return;
-    }
-
-    // Process each environment variable
-    envString = envStringStart;
-    while (*envString != '\0') {
-        if (*envString != '=') {
-            // Calculate length of the environment string
-            stringLength = strlen(envString);
-
-            // Allocate memory for the environment string
-            *envVarArray = (int)allocateMemoryFromHeap(stringLength + 1);
-            if (*envVarArray == 0) {
-                showRunTimeError(9);  // Memory allocation error
-                return;
+        case IDC_BUTTON_STAT_LOAD: {
+            // Load data from clipboard
+            if (OpenClipboard(windowHandle)) {
+                HANDLE clipboardData = GetClipboardData(CF_TEXT);
+                if (clipboardData != NULL) {
+                    char* clipboardText = (char*)GlobalLock(clipboardData);
+                    parseAndStoreDataPoints(clipboardText); // Parse and store clipboard data
+                    GlobalUnlock(clipboardData);
+                    updateStatisticsDisplay(windowHandle);
+                }
+                CloseClipboard();
             }
-
-            // Copy the environment string
-            memcpy((char*)*envVarArray, envString, stringLength + 1);
-            envVarArray++;
+            break;
         }
-        // Move to next environment string
-        envString += stringLength + 1;
+
+        case IDC_BUTTON_STAT_CE:
+            // Clear last entry
+            if (dataPointCount > 0) {
+                dataPointCount--;
+                // Remove the last item from the display
+                SendMessage(hwndStatisticsDisplay, LB_DELETESTRING, dataPointCount, 0);
+                updateStatisticsDisplay(windowHandle);
+            }
+            break;
+
+        case IDC_BUTTON_STAT_CAD:
+            // Clear all data
+            dataPointCount = 0;
+            // Clear the statistics display
+            SendMessage(hwndStatisticsDisplay, LB_RESETCONTENT, 0, 0);
+            updateStatisticsDisplay(windowHandle);
+            break;
+        }
+        return TRUE;
+
+    case WM_CLOSE: {
+        calcState.statisticsWindowOpen = FALSE;
+        DestroyWindow(windowHandle);
+        return TRUE;
     }
 
-    // Null-terminate the environment variable array
-    *envVarArray = 0;
-}
+    case WM_LBUTTONDOWN: {
+        // Handle listbox item selection
+        int xPos = GET_X_LPARAM(lParam);
+        int yPos = GET_Y_LPARAM(lParam);
 
-DWORD initCalculatorRuntime(int initializationFlags)
-{
-    int result;
-
-    // Call the calculator environment initialization function if it exists
-    if (g_initializeCalculatorEnvironmentPtr != NULL) {
-        (*g_initializeCalculatorEnvironmentPtr)();
-    }
-
-    // Initialize functions without return values
-    __initterm(&CALCULATOR_INIT_FUNCTIONS_START, &CALCULATION_INIT_FUNCTIONS_END);
-
-    // Initialize functions with return values and store the result
-    result = __initterm(&CALCULATOR_INIT_FUNCTIONS_WITH_RETURN_START,
-        &CALCULATOR_INIT_FUNCTIONS_WITH_RETURN_END);
-
-    return result;
-}
-
-void updateDecimalSeparator()
-{
-    int separatorPosition;
-
-    separatorPosition = calcState.decimalSeparatorBuffer[0];
-    if (separatorPosition == 0) {
-        if (calcState.currentValueHighPart == 0) {
-            separatorPosition = 2;
+        selectedIndex = SendMessage(hwndStatisticsDisplay, LB_ITEMFROMPOINT, 0, MAKELONG(xPos, yPos));
+        if (selectedIndex != LB_ERR && selectedIndex < dataPointCount) {
+            // Get the text of the selected item
+            SendMessage(hwndStatisticsDisplay, LB_GETTEXT, selectedIndex, (LPARAM)selectedDataPointStr);
         }
         else {
-            separatorPosition = calcState.currentValueHighPart + 1;
+            selectedIndex = -1;  // No item selected
         }
+        break;
     }
-    calcState.decimalSeparator = calcState.decimalSeparatorBuffer[0];
-    calcState.decimalSeparatorBuffer[1] = '\0';
+
+    return FALSE;
+}
+
+/*
+ * WinMain
+ *
+ * This function serves as the Windows entry point for the calculator application.
+ * It initializes the application, creates the main window, and runs the message loop
+ * until the application is closed.
+ *
+ * The function performs the following tasks:
+ * 1. Initializes the calculator state by calling initCalcState()
+ * 2. Registers the calculator window class using registerCalcClass()
+ * 3. Creates the main calculator window using initInstance()
+ * 4. Enters the main message loop to process and dispatch Windows messages
+ *
+ * @param appInstance     Handle to the current instance of the application
+ * @param unused          Always NULL for Win32 applications (legacy parameter)
+ * @param commandLine     Command line arguments as a single string
+ * @param windowMode      Controls how the window is to be shown (e.g., maximized)
+ * @return                The value from the WM_QUIT message's wParam parameter
+ */
+int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE unused, LPSTR commandLine, int windowMode)
+{
+    MSG msg;
+    appInstance = calcState.appInstance;
+
+    // Initialize calculator state
+    initCalcState();
+
+    if (!registerCalcClass(calcState.appInstance))
+    {
+        MessageBoxA(NULL, "Window Registration Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
+        return 0;
+    }
+
+    if (!initInstance(calcState.appInstance, windowMode))
+    {
+        MessageBoxA(NULL, "Window Creation Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
+        return 0;
+    }
+
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return (int)msg.wParam;
 }

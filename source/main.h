@@ -97,6 +97,10 @@ extern int BUTTON_BASE_SIZE;
 #define STATUS_WORKING  1  // Working on a calculation
 #define STATUS_DONE     2  // Done with a calculation
 
+#define INITIAL_MEMORY_SIZE 0x4000  // Initial memory allocation size (16 KB)
+#define EXTENDED_MEMORY_SIZE 0x40000 // Memory allocation size for higher precision (256 KB) 
+
+
 // Calculation result codes
 #define STATUS_SUCCESS                0  // Calculation completed successfully
 #define STATUS_DIVISION_BY_ZERO       1  // Cannot divide by zero
@@ -112,10 +116,11 @@ extern int BUTTON_BASE_SIZE;
 #define MAX_OCTAL_DIGITS 11
 #define MAX_HEXADECIMAL_DIGITS 8
 
-#define MAX_DECIMAL_DIGITS 13      //Decimal mode. For hex mode, this is 8.
-#define MAX_FRACTIONAL_DIGITS 28   //Fractional part.
+#define MAX_DECIMAL_DIGITS 13      // Decimal mode. For hex mode, this is 8.
+#define MAX_FRACTIONAL_DIGITS 28   // Fractional part.
 
-#define MAX_DISPLAY_DIGITS 35       //Maximum number of digits the calculator can display.
+#define MAX_DISPLAY_DIGITS 35      // Maximum number of digits the calculator can display.
+#define MAX_STANDARD_PRECISION 12  // Maximum precision for standard mode (32 bits)
 
 static const char* STATUS_MESSAGE_TABLE[] = {
     "Success",
@@ -298,6 +303,7 @@ typedef struct {
     const char* className;                      // Name of the window class for the calculator
     int currentSign;                            // Positive / negative sign of the current input.
     DWORD currentOperator;                      // Current operation (ADDITION, SUBTRACTION, MULTIPLICATION...)
+    int currentPrecisionLevel;                  // Initialize to max standard precision
     DWORD currentValueHighPart;                 // High part of the current value (for high precision)
     DWORD currentBackgroundColor;               // Current background color of the calculator
     char decimalSeparator;                      // Character used as decimal separator
@@ -308,6 +314,7 @@ typedef struct {
     BOOL hasOperatorPending;                    // Flag indicating if an operator is pending
     BOOL isHighContrastMode;                    // Flag indicating if high contrast mode is active
     BOOL isInputModeActive;                     // Flag indicating if input mode is active
+    BOOL isScientificModeActive;                // Flag indicating if scientific mode is active
     char helpFilePath[MAX_PATH];                // Path to the calculator's help file
     DWORD keyPressed;                           // Stores the currently pressed key
     DWORD lastValue;                            // Previous value before the last operation
@@ -315,6 +322,7 @@ typedef struct {
     const char* modeText[2];                    // Text representations of calculator modes
     DWORD memoryRegister[2];                    // Memory storage for calculator operations
     int numberBase;                             // Current number base (2 for binary, 8 for octal, 10 for decimal, 16 for hexadecimal)
+    HWND statisticsWindow;                      // Handle to the statistics window
     BOOL statisticsWindowOpen;                  // Flag to track if the statistics window is open
     const char* registryKey;                    // Registry key for storing calculator settings
     _extendedFloat80 scientificNumber;          // 80-bit extended precision floating-point number
@@ -346,19 +354,19 @@ void initCalcState(void);
 bool initInstance(HINSTANCE appInstance, int windowMode);
 void initApplicationCodePage(void);
 void initApplicationPath(void);
+DWORD initCalcRuntime(int initializationFlags);
 void initColors(int forceUpdate);
 void initStandardStreams(void);
 void initEnvironmentVariables(void);
-ATOM registerCalcClass(HINSTANCE appInstance);
 void handleCalculationError(int errorCode);
 bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT param);
 void processButtonClick(uint currentKeyPressed);
-void updateButtonState(uint buttonID, int state);
-void updateDisplay(void);
 void refreshInterface(void);
+ATOM registerCalcClass(HINSTANCE appInstance);
 void resetCalculatorState(void);
-
-DWORD initCalculatorRuntime(int initializationFlags);
+BOOL CALLBACK statisticsWindowProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+void updateButtonState(uint buttonID, int state);
 void updateDecimalSeparator();
+void updateDisplay(void);
 
 #endif // MAIN_H

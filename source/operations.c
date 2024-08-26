@@ -25,6 +25,7 @@
   -----------------------------------------------------------------------------*/
 
 #include "operations.h"
+#include "main.h"
 
 extern _calculatorState calcState;
 
@@ -226,4 +227,47 @@ void shiftMultiWordInteger(uint* highWord, int shiftAmount) {
         }
         *highWord <<= shiftAmount;  // Shift highWord left 
     } // No shift if shiftAmount is 0
+}
+
+/*
+ * toggleStatisticsWindow
+ *
+ * This function toggles the visibility of the statistics window. If the statistics
+ * window is currently closed, it creates and shows the window. If the window
+ * is open, it closes the window. The function also updates the
+ * calcState.statisticsWindowOpen flag to reflect the window's state.
+ *
+ * The function handles potential errors during dialog creation and displays
+ * an error message if necessary.
+ *
+ * @param buttonID  The resource ID of the dialog template for the statistics window.
+ */
+void toggleStatisticsWindow(UINT buttonID) {
+    if (calcState.statisticsWindowOpen) {
+        // Close the statistics window
+        DestroyWindow(calcState.statisticsWindow);
+        calcState.statisticsWindow = NULL;
+        calcState.statisticsWindowOpen = FALSE;
+    }
+    else {
+        // Create and show the statistics window
+        calcState.statisticsWindow = CreateDialogParamA(
+            calcState.appInstance,
+            MAKEINTRESOURCE(buttonID),
+            calcState.windowHandle,
+            statisticsWindowProc,
+            0);
+
+        if (calcState.statisticsWindow != NULL) {
+            ShowWindow(calcState.statisticsWindow, SW_SHOW);
+            calcState.statisticsWindowOpen = TRUE;
+        }
+        else {
+            // Handle error creating the statistics window 
+            DWORD errorCode = GetLastError();
+            TCHAR errorMessage[100];
+            wsprintf(errorMessage, TEXT("Error creating statistics window: %d"), errorCode);
+            MessageBox(calcState.windowHandle, errorMessage, calcState.className, MB_OK | MB_ICONERROR);
+        }
+    }
 }

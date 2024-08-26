@@ -153,7 +153,7 @@ BOOL appendDigit(char* accumulatedValue, int digit)
  * @param keyCode   The key code of the pressed calculator button
  * @return          The corresponding digit value (0-15) or -1 for invalid input
  */
-int convertKeyToDigit(uint keyCode)
+int convertKeyToDigit(DWORD keyCode)
 {
     switch (keyCode)
     {

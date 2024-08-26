@@ -22,7 +22,7 @@
 extern const short int MAX_DIGITS_FOR_BASE[];
 
 BOOL appendDigit(char* accumulatedValue, int digit);
-int convertKeyToDigit(uint keyCode);
+int convertKeyToDigit(DWORD keyCode);
 BOOL isClearKey(DWORD keyPressed);
 BOOL isNumericInput(DWORD keyPressed);
 BOOL isPreviousKeyOperator();
