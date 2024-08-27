@@ -609,6 +609,7 @@ DWORD initCalcRuntime(int initializationFlags)
 
     return result;
 }
+
 /*
  * initColors
  *
