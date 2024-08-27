@@ -240,6 +240,8 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 #define IDC_EDIT_RESULT   0x9B  // Result display
 #define IDC_EDIT_EXPR     0xBE  // Expression display
 
+//Codepages potentially supported by the calculator.
+#define NUM_SUPPORTED_CODEPAGES 6 
 
 // Display control
 #define IDC_EDIT_RESULT  0x9B
@@ -279,11 +281,8 @@ typedef struct {
 } _applicationPath;
 
 typedef struct {
-    int currentCodePage;
-    int codePageSpecificFlag;
-    int customCharTypeFlag1;
-    int customCharTypeFlag2;
-    int customCharTypeFlag3;
+    int currentCodepage;
+    int codepageSpecificFlag;
 } _codePageInfo;
 
 typedef struct {
@@ -296,11 +295,20 @@ typedef struct {
     HWND scientific;
 } _calculatorWindows;
 
+// Character Type Flags (for charTypeFlags array)
+#define CHAR_NUMERIC 1     // Numeric digit (0-9)
+#define CHAR_UPPERCASE 2   // Uppercase letter (A-Z)
+#define CHAR_LOWERCASE 4   // Lowercase letter (a-z)
+#define CHAR_LEADBYTE 8    // Lead byte in a double-byte character set (DBCS)
+#define CHAR_HEXDIGIT 0x10 // Valid character for hexadecimal input (0-9, A-F)
+
+
 typedef struct {
     char accumulatedValue[MAX_DISPLAY_DIGITS];  // Current value or result of the last operation
     HINSTANCE appInstance;                      // Handle to the current instance of the application
     int buttonHorizontalSpacing;                // Horizontal spacing between calculator buttons
     const char* className;                      // Name of the window class for the calculator
+    _codePageInfo codepageInfo;                 // Information about the active code page.
     int currentSign;                            // Positive / negative sign of the current input.
     DWORD currentOperator;                      // Current operation (ADDITION, SUBTRACTION, MULTIPLICATION...)
     int currentPrecisionLevel;                  // Initialize to max standard precision
@@ -336,7 +344,7 @@ extern _calculatorState calcState;
 
 extern DWORD defaultPrecisionValue;
 extern DWORD errorCodeBase;
-
+extern BOOL isCustomCodePage;
 extern DWORD currentValueHighPart;
 extern DWORD accumulatedValue;
 extern DWORD lastValue;

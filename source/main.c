@@ -31,6 +31,38 @@ _calculatorWindows calcWindows = {
 _calculatorState calcState;
 _calculatorMode calcMode = STANDARD_MODE;
 
+//This array is essential for categorizing individual characters(bytes) based on their properties within different code pages.Each byte of this array represents a character code(0 - 255).You will use bit flags to indicate the character's properties. For example:
+// - Bit 0: Numeric digit(0 - 9)
+// - Bit 1 : Uppercase letter(A - Z)
+// - Bit 2 : Lowercase letter(a - z)
+// - Bit 3 : Lead byte in a double - byte character set(DBCS)
+// - Bit 4 : Valid character for hexadecimal input(0 - 9, A - F)
+typedef struct {
+    BYTE start;   // Starting character code of the range
+    BYTE end;     // Ending character code of the range
+    BYTE flags;   // Bit flags representing the character properties for the range
+} CharRange;
+
+DWORD supportedCodepages[NUM_SUPPORTED_CODEPAGES] = {
+    1252, // ANSI (Western European) - This is essential for English and many European languages
+    932,  // Japanese Shift-JIS 
+    936,  // Simplified Chinese GBK
+    949,  // Korean
+    950,  // Traditional Chinese Big5 
+    850   // OEM (MS-DOS Latin US) - Useful for compatibility with older applications or files
+};
+
+typedef struct {
+    BYTE start;   // Starting character code of the range
+    BYTE end;     // Ending character code of the range
+    BYTE flags;   // Bit flags representing the character properties for the range
+} CharRange;
+
+CharRange charRangeTable[NUM_SUPPORTED_CODEPAGES * 6];  // 6 ranges per code page
+
+BYTE charTypeFlags[256] = { 0 }; // Initialize all elements to 0
+BOOL isCustomCodePage = FALSE;  // Initially set to FALSE (system-determined)
+
 //Stores if a button is visible or not by turning on turning the highest bit of that button on or off.
 //To toggle them, XOR the button code against the mask 0x8000.
 WORD windowStateTable[] = {
@@ -120,6 +152,56 @@ WORD windowStateTable[] = {
 // After mapping, BUTTON_BASE_SIZE is set to the resulting 'right' value.
 // This ensures consistent button sizing across different display configurations.
 int BUTTON_BASE_SIZE = 0;
+
+CharRange charRangeTable[NUM_SUPPORTED_CODEPAGES * 6] = {
+    // Code Page 1252 (Latin 1 - Western European)
+    {'0', '9', CHAR_NUMERIC | CHAR_HEXDIGIT},
+    {'A', 'Z', CHAR_UPPERCASE | CHAR_HEXDIGIT},
+    {'a', 'z', CHAR_LOWERCASE},
+    { 0,    0,    0 },  // No more ranges needed
+    { 0,    0,    0 },
+    { 0,    0,    0 },
+
+    // Code Page 932 (Japanese Shift-JIS)
+    {'0', '9', CHAR_NUMERIC | CHAR_HEXDIGIT},
+    {'A', 'Z', CHAR_UPPERCASE | CHAR_HEXDIGIT},
+    {'a', 'z', CHAR_LOWERCASE},
+    {0x81, 0x9F, CHAR_LEADBYTE},  // Lead byte range 1
+    {0xE0, 0xFC, CHAR_LEADBYTE},  // Lead byte range 2
+    {0xA1, 0xDF, CHAR_LEADBYTE}, // Lead byte range for half-width katakana
+
+    // Code Page 936 (Simplified Chinese GBK)
+    {'0', '9', CHAR_NUMERIC | CHAR_HEXDIGIT},
+    {'A', 'Z', CHAR_UPPERCASE | CHAR_HEXDIGIT},
+    {'a', 'z', CHAR_LOWERCASE},
+    {0xA1, 0xFE, CHAR_LEADBYTE}, // Lead byte range
+    { 0,    0,    0 }, // More ranges might be needed for valid GBK characters
+    { 0,    0,    0 },
+
+    // Code Page 949 (Korean)
+    {'0', '9', CHAR_NUMERIC | CHAR_HEXDIGIT},
+    {'A', 'Z', CHAR_UPPERCASE | CHAR_HEXDIGIT},
+    {'a', 'z', CHAR_LOWERCASE},
+    {0x81, 0xFE, CHAR_LEADBYTE}, // Lead byte range (approximate, check specific Korean mapping)
+    { 0,    0,    0 }, // More ranges might be needed for valid Korean characters
+    { 0,    0,    0 },
+
+    // Code Page 950 (Traditional Chinese Big5)
+    {'0', '9', CHAR_NUMERIC | CHAR_HEXDIGIT},
+    {'A', 'Z', CHAR_UPPERCASE | CHAR_HEXDIGIT},
+    {'a', 'z', CHAR_LOWERCASE},
+    {0xA1, 0xFE, CHAR_LEADBYTE}, // Lead byte range (approximate, check specific Big5 mapping)
+    { 0,    0,    0 }, // More ranges might be needed for valid Big5 characters
+    { 0,    0,    0 },
+
+    // Code Page 850 (MS-DOS Latin US) 
+    {'0', '9', CHAR_NUMERIC | CHAR_HEXDIGIT},
+    {'A', 'Z', CHAR_UPPERCASE | CHAR_HEXDIGIT},
+    {'a', 'z', CHAR_LOWERCASE},
+    { 0,    0,    0 },  // No more ranges needed for this code page (mostly for compatibility)
+    { 0,    0,    0 },
+    { 0,    0,    0 }
+};
 
 uint currentAllocationSize = INITIAL_MEMORY_SIZE; // Current allocated memory size
 
@@ -336,51 +418,50 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
     return result;
 }
 
-DWORD configureCodePageSettings(int requestedCodePage)
+DWORD configureCodePageSettings(int requestedCodepage)
 {
-    DWORD activeCodePage = setupCodePage(requestedCodePage);
-    if (currentCodePage == activeCodePage) {
+    DWORD activeCodepage = setupCodePage(requestedCodepage);
+    if (calcState.codepageInfo.currentCodepage == activeCodepage) {
         return 0;  // No change needed
     }
 
-    if (activeCodePage != 0) {
+    if (activeCodepage != 0) {
         // Check if the active code page is in the supported list
         for (int i = 0; i < NUM_SUPPORTED_CODEPAGES; i++) {
-            if (supportedCodePages[i] == activeCodePage) {
+            if (supportedCodepages[i] == activeCodepage) {
                 // Initialize character type flags
                 memset(charTypeFlags, 0, sizeof(charTypeFlags));
 
                 // Set up character ranges for the code page
-                for (int flagIndex = 0; flagIndex < 4; flagIndex++) {
-                    byte* charRangePtr = &charRangeTable[i * 6 + flagIndex * 8];
-                    while (charRangePtr[0] != 0 && charRangePtr[1] != 0) {
-                        for (DWORD charIndex = charRangePtr[0]; charIndex <= charRangePtr[1]; charIndex++) {
-                            charTypeFlags[charIndex] |= 1 << flagIndex;
-                        }
-                        charRangePtr += 2;
+                for (int j = 0; j < 6; j++) { // Loop through all 6 ranges
+                    CharRange* range = &charRangeTable[i * 6 + j];
+                    if (range->start == 0 && range->end == 0) {
+                        break; // No more ranges for this code page
+                    }
+
+                    for (DWORD charIndex = range->start; charIndex <= range->end; charIndex++) {
+                        charTypeFlags[charIndex] |= range->flags;
                     }
                 }
 
                 // Set up code page specific settings
-                currentCodePage = activeCodePage;
-                _codePageSpecificFlag = getPageSpecificFlag(activeCodePage);
-                customCharTypeFlag1 = customCharTypeTable1[i];
-                customCharTypeFlag2 = customCharTypeTable2[i];
-                customCharTypeFlag3 = customCharTypeTable3[i];
+                calcState.codepageInfo.currentCodepage = activeCodepage;
+                calcState.codepageInfo.codepageSpecificFlag = getPageSpecificFlag(activeCodepage);
+
                 return 0;
             }
         }
 
         // If not in the supported list, try to get CP info
         CPINFO codepageInfo;
-        if (GetCPInfo(activeCodePage, &codepageInfo)) {
+        if (GetCPInfo(activeCodepage, &codepageInfo)) {
             memset(charTypeFlags, 0, sizeof(charTypeFlags));
 
             if (codepageInfo.MaxCharSize >= 2) {
                 // Set up lead byte ranges
                 for (BYTE* leadBytePtr = codepageInfo.LeadByte; leadBytePtr[0] && leadBytePtr[1]; leadBytePtr += 2) {
                     for (DWORD i = leadBytePtr[0]; i <= leadBytePtr[1]; i++) {
-                        charTypeFlags[i] |= 4;  // Mark as lead byte
+                        charTypeFlags[i] |= CHAR_LEADBYTE;  // Mark as lead byte
                     }
                 }
 
@@ -389,20 +470,18 @@ DWORD configureCodePageSettings(int requestedCodePage)
                     charTypeFlags[i] |= 8;
                 }
 
-                currentCodePage = activeCodePage;
-                _codePageSpecificFlag = getPageSpecificFlag(activeCodePage);
+                calcState.codepageInfo.currentCodepage = activeCodepage;
+                calcState.codepageInfo.codepageSpecificFlag = getPageSpecificFlag(activeCodepage);
             }
             else {
-                _codePageSpecificFlag = 0;
-                currentCodePage = 0;
+                calcState.codepageInfo.codepageSpecificFlag = 0;
+                calcState.codepageInfo.currentCodepage = 0;
             }
-
-            customCharTypeFlag1 = customCharTypeFlag2 = customCharTypeFlag3 = 0;
             return 0;
         }
 
         if (!isCustomCodePage) {
-            return ERROR_CODE;
+            return ERROR_INVALID_PARAMETER;
         }
     }
 
@@ -444,6 +523,7 @@ void initCalcState(void)
     memset(calcState.accumulatedValue, 0, sizeof(calcState.accumulatedValue));
     calcState.appInstance = NULL;
     calcState.currentPrecisionLevel = MAX_STANDARD_PRECISION;
+    calcState.codepageInfo.currentCodepage = GetACP(); //Gets system codepage
     calcState.currentValueHighPart = 0;
     calcState.defaultPrecisionValue = 0;
     calcState.decimalSeparator = DEFAULT_DECIMAL_SEPARATOR;
