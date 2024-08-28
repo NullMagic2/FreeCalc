@@ -23,12 +23,7 @@
                                     the key pressed.
 
 -------------------------------------------------------------------------------*/
-#include "input.h"
-#include "main.h"
-#include "operations.h"
-#include <float.h>
-#include <math.h>
-#include <limits.h>
+#include ".//headers//input.h"
 
 extern _calculatorState calcState;
 

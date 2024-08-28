@@ -33,7 +33,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <stdbool.h>
-#include "../headers/input.h"
+#include "..//headers//input.h"
 
 typedef unsigned short ushort;
 typedef unsigned int uint;
