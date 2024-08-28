@@ -23,7 +23,8 @@
                                     the key pressed.
 
 -------------------------------------------------------------------------------*/
-#include ".//headers//input.h"
+#include "..//headers//input.h"
+#include "..//headers//main.h"
 
 extern _calculatorState calcState;
 
@@ -299,7 +300,7 @@ BOOL isOperatorKey(DWORD keyPressed)
     }
 }
 
-bool isValueOverflow(int digit) {
+BOOL isValueOverflow(int digit) {
     switch (calcState.mode) {
         case STANDARD_MODE:
             // 32-bit integer overflow check

@@ -341,6 +341,7 @@ typedef struct {
 } _calculatorState;
 
 extern _calculatorState calcState;
+extern _environmentVariables envVariables;
 
 
 extern DWORD defaultPrecisionValue;

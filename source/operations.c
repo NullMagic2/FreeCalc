@@ -105,7 +105,7 @@ void intToExtendedFloat80(LONGLONG value) {
  * @param  None. Uses the global calcState.scientificNumber. 
  * @return True if an overflow condition is detected, false otherwise.
  */ 
-bool isValueOverflowExtended(void) {
+BOOL isValueOverflowExtended(void) {
     // Check if exponent is already at the maximum
     if (calcState.scientificNumber.exponent == 0x7FFF) {
         return true; // Overflow

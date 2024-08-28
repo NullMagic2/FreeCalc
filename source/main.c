@@ -31,6 +31,11 @@ _calculatorWindows calcWindows = {
 _calculatorState calcState;
 _calculatorMode calcMode = STANDARD_MODE;
 
+_environmentVariables envVariables = {
+    .variables = NULL,
+    .count = 0
+};
+
 //This array is essential for categorizing individual characters(bytes) based on their properties within different code pages.Each byte of this array represents a character code(0 - 255).You will use bit flags to indicate the character's properties. For example:
 // - Bit 0: Numeric digit(0 - 9)
 // - Bit 1 : Uppercase letter(A - Z)
@@ -892,63 +897,71 @@ void initColors(int forceUpdate)
     }
 }
 
+/*
+ * initializeEnvironmentVariables()
+ *
+ * This function initializes the environment variables for the calculator application,
+ * making them accessible for later use.  It retrieves the system's environment
+ * block, parses it to extract individual environment variables, and stores them
+ * in the `envVariables` structure.
+ *
+ * The function performs the following tasks:
+ * 1. Gets the environment block using GetEnvironmentStringsA().
+ * 2. Iterates through the block, counting the number of environment variables.
+ * 3. Allocates a single contiguous block of memory to store both:
+ *     - An array of pointers to the start of each environment variable string.
+ *     - The environment strings themselves (name=value pairs).
+ * 4. Populates the pointer array and copies the environment strings to the data area.
+ * 5. Null-terminates the pointer array to indicate the end of the list.
+ * 6. Assigns the initialized `envVariables` structure to `calcState.environmentVariables`,
+ *    making the environment variables accessible through the calculator's state.
+ *
+ * This function is called during calculator initialization to set up access to
+ * environment variables that the calculator might need to use.
+ * 
+ */
 void initEnvironmentVariables(void)
 {
-    int* envVarArray;
-    size_t stringLength;
-    size_t copyLength;
-    size_t remainingLength;
-    char* envString;
-    int envVarCount;
-    char* nextPos;
-    char* currentEnvVar;
-    char* sourcePtr;
-    char* destPtr;
-    char currentChar;
+    char* envString = GetEnvironmentStringsA(); // Get environment strings
+    int envVarCount = 0;
 
     // Count the number of environment variables
-    envVarCount = 0;
-    envString = envStringStart;
     while (*envString != '\0') {
         if (*envString != '=') {
             envVarCount++;
         }
-        // Move to next environment string
+        // Move to next environment string 
         while (*envString++ != '\0');
     }
 
-    // Allocate memory for environment variable pointers
-    envVarArray = (int*)allocateMemoryFromHeap((envVarCount + 1) * sizeof(int));
-    g_environmentVariables = envVarArray;
+    // Allocate memory for environment variable pointers and string data
+    size_t totalSize = (envVarCount + 1) * sizeof(int) + strlen(envString) + 1;
+    char** envVarArray = (char**)allocateMemoryFromHeap(totalSize);
     if (envVarArray == NULL) {
         showRunTimeError(9);  // Memory allocation error
         return;
     }
 
-    // Process each environment variable
-    envString = envStringStart;
+    // Initialize envVariables (instead of directly accessing calcState)
+    envVariables.variables = envVarArray;
+    envVariables.count = envVarCount;
+
+    // Copy environment strings to the allocated memory
+    char* destPtr = (char*)(envVarArray + envVarCount + 1); // Data area starts after pointers
+    envString = GetEnvironmentStringsA(); // Reset envString to the beginning 
     while (*envString != '\0') {
         if (*envString != '=') {
-            // Calculate length of the environment string
-            stringLength = strlen(envString);
-
-            // Allocate memory for the environment string
-            *envVarArray = (int)allocateMemoryFromHeap(stringLength + 1);
-            if (*envVarArray == 0) {
-                showRunTimeError(9);  // Memory allocation error
-                return;
-            }
-
-            // Copy the environment string
-            memcpy((char*)*envVarArray, envString, stringLength + 1);
-            envVarArray++;
+            *envVarArray++ = destPtr; // Store pointer to variable name in the pointer array
+            strcpy(destPtr, envString); // Copy the entire environment string (name=value)
+            destPtr += strlen(destPtr) + 1;  // Move destPtr to the end of the copied string 
         }
-        // Move to next environment string
-        envString += stringLength + 1;
+        // Move to the next environment string
+        while (*envString++ != '\0');
     }
 
-    // Null-terminate the environment variable array
-    *envVarArray = 0;
+    // Null-terminate the environment variable array 
+    *envVarArray = NULL;
+
 }
 
 void initStandardStreams(void)
