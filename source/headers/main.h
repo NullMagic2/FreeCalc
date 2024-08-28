@@ -32,8 +32,10 @@
 
 #include <windows.h>
 #include <windowsx.h>
+#include <winnt.h>
 #include <stdbool.h>
 #include "..//headers//input.h"
+#include ".//headers//operations.h"
 
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -134,6 +136,11 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 };
 
 #define STATUS_MESSAGE_TABLE_END (STATUS_MESSAGE_TABLE + sizeof(STATUS_MESSAGE_TABLE)/sizeof(STATUS_MESSAGE_TABLE[0]))
+
+//Stream constants.
+#define STREAM_CONSOLE 0x40
+#define STREAM_PIPE 0x08
+#define STREAM_VALID 0x81
 
 //Calculator buttons � standard mode
 // Standard Calculator Button IDs
@@ -294,6 +301,11 @@ typedef struct {
     HWND main;
     HWND scientific;
 } _calculatorWindows;
+
+typedef struct {
+    BYTE standardStreamHandles[3];  // Array to store stdin, stdout, stderr handles
+    BYTE standardStreamFlags[3];    // Flags for each stream
+} _streams;
 
 // Character Type Flags (for charTypeFlags array)
 #define CHAR_NUMERIC 1     // Numeric digit (0-9)

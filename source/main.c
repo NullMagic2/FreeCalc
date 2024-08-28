@@ -21,7 +21,6 @@
   -----------------------------------------------------------------------------*/
 
 #include ".//headers//main.h"
-#include ".//headers//operations.h"
 
 _calculatorWindows calcWindows = {
     .main = NULL,
@@ -30,6 +29,9 @@ _calculatorWindows calcWindows = {
 
 _calculatorState calcState;
 _calculatorMode calcMode = STANDARD_MODE;
+
+//Default streams and flags
+_streams streams;
 
 _environmentVariables envVariables = {
     .variables = NULL,
@@ -964,71 +966,70 @@ void initEnvironmentVariables(void)
 
 }
 
+/*
+ * initStandardStreams
+ *
+ * Purpose:
+ *     Initializes the standard input, output, and error streams for the
+ *     calculator application. This function is called early in the application's
+ *     startup process to set up how the calculator interacts with the console
+ *     or any redirected input and output.
+ *
+ * Remarks:
+ *     This function retrieves information about the startup environment,
+ *     including any redirection of standard streams (input, output, and error).
+ *     It handles cases where the streams are redirected to files or pipes and
+ *     initializes the standard stream handles accordingly.
+ *     It determines the type of each stream (character device, pipe, or file)
+ *     and sets corresponding flags in `calcState.standardStreamFlags`.
+ */
 void initStandardStreams(void)
 {
     STARTUPINFOA startupInfo;
-    UINT redirectionSize, tempValue;
-    UINT* sourcePtr, * flagPtr;
     DWORD streamType;
     HANDLE fileHandle;
-    int streamIndex;
-    HANDLE* handlePtr;
-    UINT* handleData;
 
+    // Get startup information, which includes details about redirected streams.
     GetStartupInfoA(&startupInfo);
 
-    // Check for stream redirection information
-    if (startupInfo.lpReserved2 != NULL) {
-        redirectionSize = *(UINT*)startupInfo.lpReserved2;
-        tempValue = (redirectionSize > MAX_STREAM_REDIRECTION_BUFFER_SIZE) ?
-            MAX_STREAM_REDIRECTION_BUFFER_SIZE : redirectionSize;
-
-        // Copy stream flags
-        flagPtr = (UINT*)&standardStreamFlags;
-        sourcePtr = (UINT*)startupInfo.lpReserved2;
-        for (UINT i = tempValue >> 2; i > 0; i--) {
-            *flagPtr++ = *sourcePtr++;
+    // Initialize the standard input stream (stdin)
+    streams.standardStreamHandles[0] = GetStdHandle(STD_INPUT_HANDLE);
+    if (streams.standardStreamHandles[0] != INVALID_HANDLE_VALUE) {
+        streams.standardStreamFlags[0] = STREAM_VALID; // Stream is valid and open.
+        streamType = GetFileType(streams.standardStreamHandles[0]);
+        if ((streamType & FILE_TYPE_PIPE) == FILE_TYPE_CHAR) {
+            streams.standardStreamFlags[0] |= STREAM_CONSOLE; // Stream is a character device (console).
         }
-        for (tempValue &= 3; tempValue > 0; tempValue--) {
-            *(BYTE*)flagPtr++ = *(BYTE*)sourcePtr++;
-        }
-
-        // Copy stream handles
-        tempValue = (redirectionSize > MAX_STREAM_REDIRECTION_BUFFER_SIZE) ?
-            MAX_STREAM_REDIRECTION_BUFFER_SIZE : redirectionSize;
-        handleData = (UINT*)(redirectionSize + 4 + (INT)startupInfo.lpReserved2);
-        UINT* handlePtr = (UINT*)&streamHandles;
-        for (tempValue &= 0xFFFFFFFC; tempValue > 0; tempValue--) {
-            *handlePtr++ = *handleData++;
+        else if ((streamType & FILE_TYPE_PIPE) == FILE_TYPE_PIPE) {
+            streams.standardStreamFlags[0] |= STREAM_PIPE; // Stream is a pipe.
         }
     }
 
-    // Initialize standard streams
-    streamIndex = 0;
-    handlePtr = (HANDLE*)&streamHandles;
-    do {
-        if (*handlePtr == INVALID_HANDLE_VALUE) {
-            streamType = (streamIndex == 0) ? STD_INPUT_HANDLE :
-                (streamIndex == 1) ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE;
-            fileHandle = GetStdHandle(streamType);
-            *handlePtr = fileHandle;
-            if (fileHandle != INVALID_HANDLE_VALUE) {
-                standardStreamFlags[streamIndex] = 0x81;  // Valid and open stream
-                streamType = GetFileType(fileHandle);
-                if ((streamType & 0x0003) == FILE_TYPE_CHAR) {
-                    standardStreamFlags[streamIndex] |= 0x40;  // Console
-                }
-                else if ((streamType & 0x0003) == FILE_TYPE_PIPE) {
-                    standardStreamFlags[streamIndex] |= 0x08;  // Pipe
-                }
-            }
+    // Initialize the standard output stream (stdout)
+    streams.standardStreamHandles[1] = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (streams.standardStreamHandles[1] != INVALID_HANDLE_VALUE) {
+        streams.standardStreamFlags[1] = STREAM_VALID; // Stream is valid and open.
+        streamType = GetFileType(streams.standardStreamHandles[1]);
+        if ((streamType & FILE_TYPE_PIPE) == FILE_TYPE_CHAR) {
+            streams.standardStreamFlags[1] |= STREAM_CONSOLE; // Stream is a character device (console).
         }
-        else {
-            standardStreamFlags[streamIndex] |= 0x80;  // Already open
+        else if ((streamType & FILE_TYPE_PIPE) == FILE_TYPE_PIPE) {
+            streams.standardStreamFlags[1] |= STREAM_PIPE; // Stream is a pipe.
         }
-        handlePtr++;
-        streamIndex++;
-    } while (handlePtr < (HANDLE*)&streamHandles[3]);
+    }
+
+    // Initialize the standard error stream (stderr)
+    streams.standardStreamHandles[2] = GetStdHandle(STD_ERROR_HANDLE);
+    if (streams.standardStreamHandles[2] != INVALID_HANDLE_VALUE) {
+        streams.standardStreamFlags[2] = STREAM_VALID; // Stream is valid and open.
+        streamType = GetFileType(streams.standardStreamHandles[2]);
+        if ((streamType & FILE_TYPE_PIPE) == FILE_TYPE_CHAR) {
+            streams.standardStreamFlags[2] |= STREAM_CONSOLE; // Stream is a character device (console).
+        }
+        else if ((streamType & FILE_TYPE_PIPE) == FILE_TYPE_PIPE) {
+            streams.standardStreamFlags[2] |= STREAM_PIPE; // Stream is a pipe.
+        }
+    }
 }
 /*
  * initInstance
