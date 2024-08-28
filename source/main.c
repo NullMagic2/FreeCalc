@@ -671,33 +671,33 @@ void initApplicationPath(void)
 }
 
 /*
- * initCalcRuntime
+ * initCalcRuntime()
  *
  * Purpose:
- *     Initializes the calculator runtime environment by calling
- *     `initializeCalculatorEnvironment`, which is responsible for setting up
- *     number formatting and floating-point unit (FPU) precision.
+ *     Initializes the calculator runtime environment by setting up number
+ *     formatting and configuring the floating-point unit (FPU) precision.
  *
  * Parameters:
- *     initializationFlags:  Flags that control the initialization process.  The
- *                          meaning of these flags is determined by the calculator's
- *                          internal implementation.
+ *     initializationFlags:  Flags to control initialization.  (Not used in this
+ *                          implementation).
  *
  * Return Value:
- *     DWORD:  Returns 0 on success.
+ *     DWORD:  Always returns 0, indicating successful initialization.
  */
 DWORD initCalcRuntime(int initializationFlags)
 {
-    // Call the calculator environment initialization function.
-    if (initializeCalculatorEnvironment != NULL) {
-        initializeCalculatorEnvironment();
-    }
+    //Functions below need to be implemetned
+    // Set up number formatting 
+    setNumberFormatting();
 
-    return 0; // Indicates successful initialization 
+    // Configure FPU precision
+    configureFPUPrecision();
+
+    return 0; // Success 
 }
 
 /*
- * initColors
+ * initColors()
  *
  * This function initializes and updates the color scheme and layout of the calculator application.
  * It handles both standard and scientific modes, adjusting the interface accordingly.
