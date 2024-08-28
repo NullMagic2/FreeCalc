@@ -305,6 +305,7 @@ typedef struct {
 
 typedef struct {
     char accumulatedValue[MAX_DISPLAY_DIGITS];  // Current value or result of the last operation
+    _applicationPath appPath;                   // Calculator application path
     HINSTANCE appInstance;                      // Handle to the current instance of the application
     int buttonHorizontalSpacing;                // Horizontal spacing between calculator buttons
     const char* className;                      // Name of the window class for the calculator

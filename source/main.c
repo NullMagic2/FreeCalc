@@ -205,6 +205,23 @@ CharRange charRangeTable[NUM_SUPPORTED_CODEPAGES * 6] = {
 
 uint currentAllocationSize = INITIAL_MEMORY_SIZE; // Current allocated memory size
 
+
+/*
+ * adjustMemoryAllocation
+ *
+ * Purpose:
+ *    Sets the `currentAllocationSize` global variable based on the current calculator mode
+ *    and precision level.
+ *
+ *
+ * Remarks:
+ *    - If the calculator is in scientific mode and the current precision level is less than
+ *      `MAX_STANDARD_PRECISION`, the `currentAllocationSize` is set to
+ *      `EXTENDED_MEMORY_SIZE`. This likely indicates that the calculator needs more
+ *      memory to handle the higher precision calculations required in scientific mode.
+ *    - Otherwise, `currentAllocationSize` is set to `INITIAL_MEMORY_SIZE`, which is
+ *      presumably a smaller amount of memory suitable for standard mode calculations.
+ */
 void adjustMemoryAllocation(void) {
     if (isScientificMode() && calcState.currentPrecisionLevel < MAX_STANDARD_PRECISION) {
         currentAllocationSize = EXTENDED_MEMORY_SIZE;
@@ -214,7 +231,24 @@ void adjustMemoryAllocation(void) {
     }
 }
 
-
+/*
+ * initCalcState()
+ *
+ * This function initializes the calculator's state, setting up all initial values
+ * for the calculator parameters. It should be called once at the start of the application.
+ *
+ * The function performs the following tasks:
+ * 1. Initializes string constants (class name, registry key, mode text)
+ * 2. Sets the default help file path
+ * 3. Initializes numeric values (precision, error codes, button states, etc.)
+ * 4. Sets up the initial calculator mode
+ * 5. Clears memory registers and error states
+ * 6. Sets the default decimal separator
+ * 7. Updates the decimal separator based on system settings
+ *
+ * @param None
+ * @return None
+ */
 LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     LRESULT result = 0;
@@ -418,6 +452,38 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
     return result;
 }
 
+/*
+ * configureCodePageSettings()
+ *
+ * Purpose:
+ *     Configures character type flags based on the requested code page.
+ *     This function updates the `charTypeFlags` array based on the character
+ *     ranges defined for the given code page.  It handles both explicitly
+ *     supported code pages and dynamically loaded code pages using the
+ *     `GetCPInfo` function.
+ *
+ * Parameters:
+ *     requestedCodepage:  The code page to configure. Special values:
+ *                         - SYSTEM_CODE_PAGE: Use the system's default code page.
+ *                         - Other values:   Attempt to set the specified code page.
+ *
+ * Return value:
+ *     DWORD: Returns 0 on success or an error code on failure.
+ *            ERROR_INVALID_PARAMETER is returned if the code page is not
+ *            supported and is not a custom code page.
+ *
+ * Remarks:
+ *     - This function is crucial for proper character handling, as it determines which
+ *       characters are considered valid for numeric input, hexadecimal input, etc.
+ *     - It makes use of the `charRangeTable` to define ranges of characters with
+ *       specific properties.
+ *     - For code pages not explicitly supported, it attempts to dynamically load
+ *       code page information using `GetCPInfo`.
+ *     - The function also handles DBCS (Double Byte Character Sets), marking
+ *       lead bytes appropriately.
+ *     - If the requested code page is invalid or unsupported, it resets the character
+ *       type flags to their default state.
+ */
 DWORD configureCodePageSettings(int requestedCodepage)
 {
     DWORD activeCodepage = setupCodePage(requestedCodepage);
@@ -555,6 +621,25 @@ void initApplicationCodePage(void)
     configureCodePageSettings(SYSTEM_CODE_PAGE);
 }
 
+/*
+ * initApplicationPath
+ *
+ * Purpose:
+ *     Initializes the application path, storing the full path and its individual
+ *     components in the `calcState.appPath` structure. This function is called
+ *     during the initialization of the calculator application.
+ *
+ *
+ * Remarks:
+ *     1. Obtains the full path of the calculator executable using `GetModuleFileNameA`.
+ *     2. Calls `tokenizeString` twice:
+ *         - The first call is to determine the number of path components and the required memory.
+ *         - The second call performs the actual tokenization, splitting the full path into
+ *           individual components (separated by backslashes or forward slashes).
+ *     3. Allocates memory for the path component pointers and the string data.
+ *     4. Stores the full path, the array of path component pointers, and the component count
+ *        in the `calcState.appPath` structure.
+ */
 void initApplicationPath(void)
 {
     char** pathComponents;
@@ -563,14 +648,8 @@ void initApplicationPath(void)
     int componentCount;
 
     // Get the full path of the current executable (max 260 characters)
-    GetModuleFileNameA((HMODULE)0x0, &g_appPath, 0x104);
-    g_appPathPtr = &g_appPath;
-    appPathBuffer = &g_appPath;
-
-    // If endOfMemoryTable is not empty, use it instead of the retrieved path
-    if (*endOfMemoryTable != '\0') {
-        appPathBuffer = endOfMemoryTable;
-    }
+    GetModuleFileNameA((HMODULE)0x0, calcState.appPath.fullPath, 0x104);
+    appPathBuffer = calcState.appPath.fullPath;
 
     // First pass: count path components and calculate required memory
     tokenizeString(appPathBuffer, (char**)0x0, (char*)0x0, &componentCount, &pathDataSize);
@@ -586,28 +665,35 @@ void initApplicationPath(void)
     tokenizeString(appPathBuffer, pathComponents, (char*)(pathComponents + componentCount),
         &componentCount, &pathDataSize);
 
-    // Store results in global variables
-    g_pathComponentsPtr = pathComponents;
-    g_pathComponentCount = componentCount - 1;
+    // Store results in calcState structure
+    calcState.appPath.components = pathComponents;        // Store the path components 
+    calcState.appPath.componentCount = componentCount - 1; // Store the component count 
 }
 
+/*
+ * initCalcRuntime
+ *
+ * Purpose:
+ *     Initializes the calculator runtime environment by calling
+ *     `initializeCalculatorEnvironment`, which is responsible for setting up
+ *     number formatting and floating-point unit (FPU) precision.
+ *
+ * Parameters:
+ *     initializationFlags:  Flags that control the initialization process.  The
+ *                          meaning of these flags is determined by the calculator's
+ *                          internal implementation.
+ *
+ * Return Value:
+ *     DWORD:  Returns 0 on success.
+ */
 DWORD initCalcRuntime(int initializationFlags)
 {
-    int result;
-
-    // Call the calculator environment initialization function if it exists
-    if (g_initializeCalculatorEnvironmentPtr != NULL) {
-        (*g_initializeCalculatorEnvironmentPtr)();
+    // Call the calculator environment initialization function.
+    if (initializeCalculatorEnvironment != NULL) {
+        initializeCalculatorEnvironment();
     }
 
-    // Initialize functions without return values
-    __initterm(&CALCULATOR_INIT_FUNCTIONS_START, &CALCULATION_INIT_FUNCTIONS_END);
-
-    // Initialize functions with return values and store the result
-    result = __initterm(&CALCULATOR_INIT_FUNCTIONS_WITH_RETURN_START,
-        &CALCULATOR_INIT_FUNCTIONS_WITH_RETURN_END);
-
-    return result;
+    return 0; // Indicates successful initialization 
 }
 
 /*
