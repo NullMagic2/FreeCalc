@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /W95_Calc/W95_Calc.ico
 /W95_Calc/W95_Calc.rc
+/source/input.h
+/source/main.h
+/source/operations.h

@@ -33,7 +33,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <stdbool.h>
-#include "input.h"
+#include "../headers/input.h"
 
 typedef unsigned short ushort;
 typedef unsigned int uint;
@@ -144,7 +144,7 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 
 #define IDC_BUTTON_BACK   0x84  // Backspace
 #define IDC_BUTTON_CE     0x85  // Clear Entry
-#define IDC_BUTTON_C      0x86  // Clear All
+#define IDC_BUTTON_CA     0x86  // Clear All
 
 #define IDC_BUTTON_7      0x87  // Digit 7
 #define IDC_BUTTON_8      0x88  // Digit 8
@@ -361,7 +361,7 @@ DWORD configureCodePageSettings(int requestedCodePage);
 DWORD getCalculatorButton(ushort x, ushort y);
 const char* getStatusCode(int statusCode);
 void initCalcState(void);
-bool initInstance(HINSTANCE appInstance, int windowMode);
+BOOL initInstance(HINSTANCE appInstance, int windowMode);
 void initApplicationCodePage(void);
 void initApplicationPath(void);
 DWORD initCalcRuntime(int initializationFlags);
@@ -369,7 +369,7 @@ void initColors(int forceUpdate);
 void initStandardStreams(void);
 void initEnvironmentVariables(void);
 void handleCalculationError(int errorCode);
-bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT param);
+BOOL handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT param);
 void processButtonClick(uint currentKeyPressed);
 void refreshInterface(void);
 ATOM registerCalcClass(HINSTANCE appInstance);

@@ -20,8 +20,8 @@
 
   -----------------------------------------------------------------------------*/
 
-#include "main.h"
-#include "operations.h"
+#include ".//headers//main.h"
+#include ".//headers//operations.h"
 
 _calculatorWindows calcWindows = {
     .main = NULL,
@@ -79,7 +79,7 @@ WORD windowStateTable[] = {
     // Standard mode buttons
     0x00 | IDC_BUTTON_BACK,        // Standard Mode | Backspace
     0x00 | IDC_BUTTON_CE,          // Standard Mode | Clear Entry
-    0x00 | IDC_BUTTON_C,           // Standard Mode | Clear All
+    0x00 | IDC_BUTTON_CA,          // Standard Mode | Clear All
 
     0x00 | IDC_BUTTON_7,           // Standard Mode | Digit 7
     0x00 | IDC_BUTTON_8,           // Standard Mode | Digit 8
@@ -1035,7 +1035,7 @@ void initStandardStreams(void)
  * @param windowMode      Controls how the window is to be shown (e.g., maximized, minimized)
  * @return                true if window creation and initialization succeed, false otherwise
  */
-bool initInstance(HINSTANCE appInstance, int windowMode)
+BOOL initInstance(HINSTANCE appInstance, int windowMode)
 {
     calcState.windowHandle = CreateWindowExA(
         WS_EX_CLIENTEDGE,
@@ -1050,7 +1050,7 @@ bool initInstance(HINSTANCE appInstance, int windowMode)
 
     if (calcState.windowHandle == NULL)
     {
-        return false;
+        return FALSE;
     }
 
     // Set up initial rectangle
@@ -1068,7 +1068,7 @@ bool initInstance(HINSTANCE appInstance, int windowMode)
     ShowWindow(calcState.windowHandle, windowMode);
     UpdateWindow(calcState.windowHandle);
 
-    return true;
+    return TRUE;
 }
 
 DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
@@ -1090,13 +1090,13 @@ DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
         if (mouseX >= leftEdge && mouseX <= rightEdge) {
             // Find the column of the clicked button
             int column = 0;
-            bool buttonFound = false;
+            BOOL buttonFound = FALSE;
             int buttonsPerRow = BUTTONS_PER_ROW[calcMode];
 
             while (column < buttonsPerRow && !buttonFound) {
                 if (mouseY >= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) &&
                     mouseY <= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) + ((14 * BUTTON_SCALING_FACTOR + 7) >> 3)) {
-                    buttonFound = true;
+                    buttonFound = TRUE;
                 }
                 column++;
             }
@@ -1104,14 +1104,14 @@ DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
             if (buttonFound && column <= buttonsPerRow) {
                 // Find the row of the clicked button
                 int row = 0;
-                bool rowFound = false;
+                BOOL rowFound = FALSE;
                 int buttonCount = BUTTON_COUNT_PER_MODE[calcMode];
 
                 while (row < buttonCount && !rowFound) {
                     horizontalPosition = adjustButtonHorizontalPosition(horizontalPosition, row, 0);
                     if (mouseX >= horizontalPosition + verticalPosition &&
                         mouseX <= horizontalPosition + verticalPosition + BUTTON_BASE_SIZE) {
-                        rowFound = true;
+                        rowFound = TRUE;
                     }
                     horizontalPosition += BUTTON_BASE_SIZE + 4;
                     row++;
@@ -1295,7 +1295,7 @@ void refreshInterface(void)
     ShowCursor(FALSE);
 }
 
-bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
+BOOL handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
 {
     // ID do recurso do menu de contexto
     const UINT CONTEXT_MENU_RESOURCE_ID = 4;
@@ -1307,7 +1307,7 @@ bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
     HMENU menuHandle = LoadMenuA(hInstance, MAKEINTRESOURCE(CONTEXT_MENU_RESOURCE_ID));
     if (menuHandle == NULL) {
         // Falha ao carregar o menu
-        return false;
+        return FALSE;
     }
 
     // Obt�m o primeiro (e provavelmente �nico) submenu
@@ -1315,7 +1315,7 @@ bool handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT message)
     if (hPopupMenu == NULL) {
         // Falha ao obter o submenu
         DestroyMenu(menuHandle);
-        return false;
+        return FALSE;
     }
 
     // Extrai as coordenadas x e y do mouse do par�metro message
@@ -1381,7 +1381,7 @@ BOOL hasDecimalSeparator(const char* str) {
  */
 void processButtonClick(uint currentKeyPressed)
 {
-    bool isValidInput;
+    BOOL isValidInput;
     double calculationResult;
     int currentOperatorPrecedence, newOperatorPrecedence, stackPointer;
 
@@ -1400,12 +1400,12 @@ void processButtonClick(uint currentKeyPressed)
     if (!calcState.isInputModeActive) {
         isValidInput = isNumericInput(currentKeyPressed) || currentKeyPressed == IDC_BUTTON_DOT;
         if (isValidInput) {
-            calcState.isInputModeActive = true;
+            calcState.isInputModeActive = TRUE;
             initCalcState();
         }
     }
     else if (isOperatorKey(currentKeyPressed) || currentKeyPressed == IDC_BUTTON_EXP) {
-        calcState.isInputModeActive = false;
+        calcState.isInputModeActive = FALSE;
     }
 
     // Reset calculator state for certain key combinations
@@ -1454,8 +1454,8 @@ void processButtonClick(uint currentKeyPressed)
         else {
             MessageBeep(0);
         }
-        calcState.isInverseMode = false;
-        updateToggleButton(IDC_BUTTON_INV, false);
+        calcState.isInverseMode = FALSE;
+        updateToggleButton(IDC_BUTTON_INV, FALSE);
         return;
     }
 
@@ -1502,8 +1502,8 @@ void processButtonClick(uint currentKeyPressed)
                     calcState.lastValue = calcState.accumulatedValue;
                     calcState.currentOperator = currentKeyPressed;
                     calcState.accumulatedValue = 0.0;
-                    calcState.isLastInputComplete = true;
-                    calcState.hasOperatorPending = true;
+                    calcState.isLastInputComplete = TRUE;
+                    calcState.hasOperatorPending = TRUE;
                     calcState.currentSign = 1;
                     return;
                 }
@@ -1518,15 +1518,15 @@ void processButtonClick(uint currentKeyPressed)
                 calcState.operatorStackPointer--;
                 calcState.currentOperator = popOperator();
                 calcState.lastValue = popOperand();
-            } while (true);
+            } while (TRUE);
         }
 
         if (calcState.errorState == 0) {
             updateDisplay();
             calcState.lastValue = calcState.accumulatedValue;
             calcState.currentSign = 1;
-            calcState.hasOperatorPending = true;
-            calcState.isLastInputComplete = true;
+            calcState.hasOperatorPending = TRUE;
+            calcState.isLastInputComplete = TRUE;
             calcState.accumulatedValue = 0.0;
             calcState.currentOperator = currentKeyPressed;
         }
@@ -1534,8 +1534,8 @@ void processButtonClick(uint currentKeyPressed)
             calcState.lastValue = calcState.accumulatedValue;
             calcState.currentOperator = currentKeyPressed;
             calcState.accumulatedValue = 0.0;
-            calcState.isLastInputComplete = true;
-            calcState.hasOperatorPending = true;
+            calcState.isLastInputComplete = TRUE;
+            calcState.hasOperatorPending = TRUE;
             calcState.currentSign = 1;
         }
         return;

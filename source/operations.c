@@ -24,8 +24,8 @@
 
   -----------------------------------------------------------------------------*/
 
-#include "operations.h"
-#include "main.h"
+#include ".//headers//operations.h"
+#include ".//headers//main.h"
 
 extern _calculatorState calcState;
 
@@ -208,7 +208,7 @@ void stringToExtendedFloat80(const char* str) {
  * @return                None. The function modifies the value pointed to by highWord and
  *                        the calcState.scientificNumber.mantissaLow. 
  */
-void shiftMultiWordInteger(uint* highWord, int shiftAmount) {
+void shiftMultiWordInteger(DWORD* highWord, int shiftAmount) {
     if (shiftAmount > 0) { // Right shift
         if (shiftAmount >= 32) {
             *highWord = 0;  // Shift is more than 32 bits, highWord becomes 0
