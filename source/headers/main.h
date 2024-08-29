@@ -330,6 +330,8 @@ typedef struct {
 #define CHAR_LEADBYTE 8    // Lead byte in a double-byte character set (DBCS)
 #define CHAR_HEXDIGIT 0x10 // Valid character for hexadecimal input (0-9, A-F)
 
+#define MAX_OPERATOR_STACK 25 //Max level of parenthesis identiations
+
 
 typedef struct {
     char accumulatedValue[MAX_DISPLAY_DIGITS];  // Current value or result of the last operation
@@ -351,6 +353,7 @@ typedef struct {
     BOOL hasOperatorPending;                    // Flag indicating if an operator is pending
     BOOL isHighContrastMode;                    // Flag indicating if high contrast mode is active
     BOOL isInputModeActive;                     // Flag indicating if input mode is active
+    BOOL isInverseMode;                         // Flag to indicate inverse mode 
     BOOL isScientificModeActive;                // Flag indicating if scientific mode is active
     char helpFilePath[MAX_PATH];                // Path to the calculator's help file
     DWORD keyPressed;                           // Stores the currently pressed key
@@ -359,6 +362,7 @@ typedef struct {
     const char* modeText[2];                    // Text representations of calculator modes
     DWORD memoryRegister[2];                    // Memory storage for calculator operations
     int numberBase;                             // Current number base (2 for binary, 8 for octal, 10 for decimal, 16 for hexadecimal)
+    int operatorStackPointer;                   // Index into the operator stack
     HWND statisticsWindow;                      // Handle to the statistics window
     BOOL statisticsWindowOpen;                  // Flag to track if the statistics window is open
     const char* registryKey;                    // Registry key for storing calculator settings
@@ -405,7 +409,7 @@ ATOM registerCalcClass(HINSTANCE appInstance);
 void resetCalculatorState(void);
 void toggleScientificMode(void);
 BOOL CALLBACK statisticsWindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam);
-BOOL CALLBACK ScientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL CALLBACK scientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 void updateButtonState(uint buttonID, int state);
 void updateDecimalSeparator();
 void updateDisplay(void);

@@ -69,6 +69,7 @@ CharRange charRangeTable[NUM_SUPPORTED_CODEPAGES * 6];  // 6 ranges per code pag
 
 BYTE charTypeFlags[256] = { 0 }; // Initialize all elements to 0
 BOOL isCustomCodePage = FALSE;  // Initially set to FALSE (system-determined)
+DWORD operatorStack[MAX_OPERATOR_STACK]; // Global operator stack variable (for the parentheses)
 
 //Stores if a button is visible or not by turning on turning the highest bit of that button on or off.
 //To toggle them, XOR the button code against the mask 0x8000.
@@ -1415,7 +1416,7 @@ BOOL hasDecimalSeparator(const char* str) {
 }
 
 /*
- * processButtonClick
+ * processButtonClick()
  *
  * This function handles the processing of button clicks in the calculator application.
  * It manages input mode, performs calculations, and updates the calculator state based on user input.
@@ -1440,9 +1441,11 @@ BOOL hasDecimalSeparator(const char* str) {
  */
 void processButtonClick(uint currentKeyPressed)
 {
+    BOOL isLastInputComplete;
     BOOL isValidInput;
     double calculationResult;
     int currentOperatorPrecedence, newOperatorPrecedence, stackPointer;
+    char tempBuffer[MAX_DISPLAY_DIGITS]; // Temporary buffer for calculations
 
     // Handle special function keys
     if (!isSpecialFunctionKey(currentKeyPressed)) {
@@ -1484,7 +1487,7 @@ void processButtonClick(uint currentKeyPressed)
                 }
             }
             else {
-                if (isValueOverflow(calcState.accumulatedValue, calcState.numberBase, digit)) {
+                if (isValueOverflow(calcState.accumulatedValue, calcState.numberBase, digit, calcState.mode)) {
                     handleCalculationError(STATUS_OVERFLOW);
                     return;
                 }
@@ -1548,7 +1551,7 @@ void processButtonClick(uint currentKeyPressed)
             do {
                 stackPointer = calcState.operatorStackPointer;
                 newOperatorPrecedence = getOperatorPrecedence(currentKeyPressed);
-                currentOperatorPrecedence = getOperatorPrecedence(calcState.operator);
+                currentOperatorPrecedence = getOperatorPrecedence(calcState.currentOperator); // Use currentOperator from calcState
 
                 if (newOperatorPrecedence > currentOperatorPrecedence && calcState.mode == STANDARD_MODE) {
                     if (calcState.operatorStackPointer < MAX_OPERATOR_STACK) {
@@ -1558,17 +1561,18 @@ void processButtonClick(uint currentKeyPressed)
                         calcState.operatorStackPointer = MAX_OPERATOR_STACK - 1;
                         MessageBeep(0);
                     }
-                    calcState.lastValue = calcState.accumulatedValue;
+                    isLastInputComplete = TRUE;
+                    calcState.lastValue = atof(calcState.accumulatedValue); // Convert accumulatedValue to double
                     calcState.currentOperator = currentKeyPressed;
-                    calcState.accumulatedValue = 0.0;
-                    calcState.isLastInputComplete = TRUE;
+                    strcpy_s(calcState.accumulatedValue, MAX_DISPLAY_DIGITS, "0"); // Clear accumulatedValue
                     calcState.hasOperatorPending = TRUE;
                     calcState.currentSign = 1;
                     return;
                 }
 
-                calculationResult = performAdvancedCalculation(calcState.currentOperator, calcState.lastValue, calcState.accumulatedValue);
-                calcState.accumulatedValue = calculationResult;
+                calculationResult = performAdvancedCalculation(calcState.currentOperator, calcState.lastValue, atof(calcState.accumulatedValue));
+                sprintf_s(tempBuffer, MAX_DISPLAY_DIGITS, "%f", calculationResult); // Convert result to string
+                strcpy_s(calcState.accumulatedValue, MAX_DISPLAY_DIGITS, tempBuffer); // Store result in accumulatedValue
 
                 if (calcState.operatorStackPointer == 0 || getTopOperator() == 0) {
                     break;
@@ -1582,18 +1586,18 @@ void processButtonClick(uint currentKeyPressed)
 
         if (calcState.errorState == 0) {
             updateDisplay();
-            calcState.lastValue = calcState.accumulatedValue;
+            isLastInputComplete = TRUE;
+            calcState.lastValue = atof(calcState.accumulatedValue); // Convert accumulatedValue to double
             calcState.currentSign = 1;
             calcState.hasOperatorPending = TRUE;
-            calcState.isLastInputComplete = TRUE;
-            calcState.accumulatedValue = 0.0;
+            strcpy_s(calcState.accumulatedValue, MAX_DISPLAY_DIGITS, "0"); // Clear accumulatedValue
             calcState.currentOperator = currentKeyPressed;
         }
         else {
-            calcState.lastValue = calcState.accumulatedValue;
+            isLastInputComplete = TRUE;
+            calcState.lastValue = atof(calcState.accumulatedValue); // Convert accumulatedValue to double
             calcState.currentOperator = currentKeyPressed;
-            calcState.accumulatedValue = 0.0;
-            calcState.isLastInputComplete = TRUE;
+            strcpy_s(calcState.accumulatedValue, MAX_DISPLAY_DIGITS, "0"); // Clear accumulatedValue
             calcState.hasOperatorPending = TRUE;
             calcState.currentSign = 1;
         }
@@ -1607,7 +1611,7 @@ void processButtonClick(uint currentKeyPressed)
 }
 
 /*
- * registerCalcClass
+ * registerCalcClass()
  *
  * This function registers the window class for the calculator application.
  * It sets up the window class attributes and registers it with the Windows system.
@@ -1645,7 +1649,31 @@ ATOM registerCalcClass(HINSTANCE appInstance)
     return RegisterClassExA(&wcex);
 }
 
-BOOL CALLBACK ScientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+/*
+ * scientificDialogProc()
+ *
+ * Purpose:
+ *     Dialog procedure for the scientific mode of the calculator.  This function handles
+ *     messages sent to the scientific mode dialog box.
+ *
+ * Parameters:
+ *     hDlg:     Handle to the scientific mode dialog box.
+ *     message:  The message identifier.
+ *     wParam:   Additional message information.
+ *     lParam:   Additional message information.
+ *
+ * Return Value:
+ *     BOOL: TRUE if the message was processed, FALSE otherwise.
+ *
+ * Remarks:
+ *     This function handles the following messages:
+ *     - WM_INITDIALOG: Initializes the controls in the scientific dialog box.
+ *     - WM_COMMAND: Processes command messages from the dialog box controls,
+ *                   including button clicks and menu selections.
+ *     - WM_CLOSE: Prevents the dialog box from being closed directly.  Instead, it
+ *                 sends a message to the main window to switch back to standard mode.
+ */
+BOOL CALLBACK scientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
@@ -1705,7 +1733,7 @@ BOOL CALLBACK ScientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARA
 }
 
 /*
- * resetCalculator
+ * resetCalculator()
  *
  * This function performs a complete reset of the calculator, returning it to its initial state.
  * It resets all relevant fields in the _calculatorState structure.
@@ -1793,7 +1821,7 @@ void toggleScientificMode(void)
         calcState.scientificWindowHandle = CreateDialogParamA(calcState.appInstance,
             "SCIENTIFIC_DIALOG",
             calcState.windowHandle,
-            ScientificDialogProc, 0);
+            scientificDialogProc, 0);
         if (calcState.scientificWindowHandle == NULL)
         {
             // Handle error
