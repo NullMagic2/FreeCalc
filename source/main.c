@@ -210,6 +210,25 @@ CharRange charRangeTable[NUM_SUPPORTED_CODEPAGES * 6] = {
     { 0,    0,    0 }
 };
 
+DWORD BUTTON_ID_MAP_STANDARD[] = {
+    IDC_BUTTON_MC,  IDC_BUTTON_7,  IDC_BUTTON_8,  IDC_BUTTON_9,  IDC_BUTTON_DIV, IDC_BUTTON_SQRT,
+    IDC_BUTTON_MR,  IDC_BUTTON_4,  IDC_BUTTON_5,  IDC_BUTTON_6,  IDC_BUTTON_MUL, IDC_BUTTON_PERC,
+    IDC_BUTTON_MS,  IDC_BUTTON_1,  IDC_BUTTON_2,  IDC_BUTTON_3,  IDC_BUTTON_SUB, IDC_BUTTON_INV,
+    IDC_BUTTON_MPLUS, IDC_BUTTON_0, IDC_BUTTON_NEG, IDC_BUTTON_DOT, IDC_BUTTON_ADD, IDC_BUTTON_EQ,
+    IDC_BUTTON_BACK, IDC_BUTTON_CE, IDC_BUTTON_CA
+};
+
+DWORD BUTTON_ID_MAP_SCIENTIFIC[] = {
+    IDC_BUTTON_MC, IDC_BUTTON_7,  IDC_BUTTON_8,  IDC_BUTTON_9,  IDC_BUTTON_DIV, IDC_BUTTON_MOD,   IDC_BUTTON_AND,
+    IDC_BUTTON_MR, IDC_BUTTON_4,  IDC_BUTTON_5,  IDC_BUTTON_6,  IDC_BUTTON_MUL, IDC_BUTTON_OR,    IDC_BUTTON_XOR,
+    IDC_BUTTON_MS, IDC_BUTTON_1,  IDC_BUTTON_2,  IDC_BUTTON_3,  IDC_BUTTON_SUB, IDC_BUTTON_LSH,   IDC_BUTTON_NOT,
+    IDC_BUTTON_MPLUS, IDC_BUTTON_0, IDC_BUTTON_NEG, IDC_BUTTON_DOT, IDC_BUTTON_ADD, IDC_BUTTON_EQ,  IDC_BUTTON_INT,
+    IDC_BUTTON_STA, IDC_BUTTON_F_E,IDC_BUTTON_LPAR,IDC_BUTTON_RPAR,IDC_BUTTON_MSUB, IDC_BUTTON_PI, IDC_BUTTON_A, IDC_BUTTON_B, IDC_BUTTON_C, IDC_BUTTON_D, IDC_BUTTON_E, IDC_BUTTON_F,
+    IDC_BUTTON_AVE, IDC_BUTTON_DMS,IDC_BUTTON_EXP, IDC_BUTTON_LN,   IDC_BUTTON_SIN,  IDC_BUTTON_XY,   IDC_BUTTON_LOG, IDC_BUTTON_SQR, IDC_BUTTON_CUBE,IDC_BUTTON_FACT,
+    IDC_BUTTON_SUM, IDC_BUTTON_SIN,IDC_BUTTON_COS, IDC_BUTTON_TAN,  IDC_BUTTON_ASIN, IDC_BUTTON_ACOS, IDC_BUTTON_ATAN
+};
+
+
 uint currentAllocationSize = INITIAL_MEMORY_SIZE; // Current allocated memory size
 
 
@@ -967,7 +986,7 @@ void initEnvironmentVariables(void)
 }
 
 /*
- * initStandardStreams
+ * initStandardStreams()
  *
  * Purpose:
  *     Initializes the standard input, output, and error streams for the
@@ -1032,7 +1051,7 @@ void initStandardStreams(void)
     }
 }
 /*
- * initInstance
+ * initInstance()
  *
  * This function creates and initializes the main window for the calculator application.
  * It sets up the window, configures its properties, and prepares it for display.
@@ -1085,31 +1104,62 @@ BOOL initInstance(HINSTANCE appInstance, int windowMode)
     return TRUE;
 }
 
+/*
+ * getCalculatorButton()
+ *
+ * Purpose:
+ *     Determines the ID of the calculator button that was clicked based on the
+ *     mouse coordinates. It handles both standard and scientific modes and
+ *     considers the layout and dimensions of the buttons.
+ *
+ * Parameters:
+ *     mouseX: The x-coordinate of the mouse click in client coordinates.
+ *     mouseY: The y-coordinate of the mouse click in client coordinates.
+ *
+ * Return Value:
+ *     DWORD: The ID of the button that was clicked, or 0 if no button was clicked.
+ */
 DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
 {
-    int buttonWidth = (BUTTON_BASE_SIZE * 4) / 3 + 5;
-    int horizontalPosition = 0;
-    int rowIndex = (BUTTON_BASE_SIZE * 4) / 3 + 1;
-    int modeOffset = calcMode * 4;
+    int buttonWidth, horizontalPosition, rowIndex;
+    RECT clientRect;
 
-    // Check if the click is in the main button area
-    int topEdge = ((BUTTON_ROW_CONFIG + BUTTON_VERTICAL_SPACING) * BUTTON_SCALING_FACTOR + 7) >> 3;
-    int bottomEdge = (BUTTON_ROW_CONFIG * BUTTON_SCALING_FACTOR + 7) >> 3;
+    // Calculate the width of a standard button
+    buttonWidth = (BUTTON_BASE_SIZE * SPECIAL_BUTTON_WIDTH_FACTOR) / 3 + 5;
+    horizontalPosition = 0;
+    rowIndex = (BUTTON_BASE_SIZE * SPECIAL_BUTTON_WIDTH_FACTOR) / 3 + 1;
+
+    // Define the main button area based on the current mode
+    int topEdge, bottomEdge, leftEdge, rightEdge;
+
+    if (calcState.mode == SCIENTIFIC_MODE) {
+        topEdge = VERTICAL_MARGIN;
+        bottomEdge = topEdge + SCIENTIFIC_CALC_ROWS * (BUTTON_BASE_SIZE + BUTTON_VERTICAL_SPACING) - BUTTON_VERTICAL_SPACING;
+        leftEdge = HORIZONTAL_MARGIN;
+        rightEdge = leftEdge + SCIENTIFIC_CALC_COLS * (BUTTON_BASE_SIZE + SCIENTIFIC_BUTTON_EXTRA_WIDTH + BUTTON_HORIZONTAL_SPACING) - BUTTON_HORIZONTAL_SPACING;
+    }
+    else { // Standard mode
+        topEdge = VERTICAL_MARGIN + (BUTTON_BASE_SIZE * SPECIAL_BUTTON_HEIGHT_FACTOR) / 2 + BUTTON_VERTICAL_SPACING;
+        bottomEdge = topEdge + STANDARD_CALC_ROWS * (BUTTON_BASE_SIZE + BUTTON_VERTICAL_SPACING) - BUTTON_VERTICAL_SPACING;
+        leftEdge = HORIZONTAL_MARGIN;
+        rightEdge = leftEdge + STANDARD_CALC_COLS * (BUTTON_BASE_SIZE + BUTTON_HORIZONTAL_SPACING) - BUTTON_HORIZONTAL_SPACING;
+    }
 
     if (mouseY >= topEdge && mouseY < bottomEdge) {
-        int verticalPosition = VERTICAL_OFFSET + 6;
-        int leftEdge = (BUTTON_COLUMN_CONFIG * BUTTON_SCALING_FACTOR + 7) >> 3;
-        int rightEdge = ((BUTTON_COLUMN_CONFIG + 0x56) * BUTTON_SCALING_FACTOR + 7) >> 3;
+        int verticalPosition = VERTICAL_OFFSET + 6; // Check if VERTICAL_OFFSET is defined correctly
 
         if (mouseX >= leftEdge && mouseX <= rightEdge) {
             // Find the column of the clicked button
             int column = 0;
             BOOL buttonFound = FALSE;
-            int buttonsPerRow = BUTTONS_PER_ROW[calcMode];
+            int buttonsPerRow = (calcState.mode == SCIENTIFIC_MODE) ? SCIENTIFIC_CALC_COLS : STANDARD_CALC_COLS;
+
+            // Calculate the height of a button row 
+            int buttonRowHeight = (BUTTON_ROW_HEIGHT_FACTOR * BUTTON_BASE_SIZE + 7) >> 3;
 
             while (column < buttonsPerRow && !buttonFound) {
-                if (mouseY >= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) &&
-                    mouseY <= leftEdge + column * ((17 * BUTTON_SCALING_FACTOR + 7) >> 3) + ((14 * BUTTON_SCALING_FACTOR + 7) >> 3)) {
+                if (mouseY >= topEdge + column * buttonRowHeight &&
+                    mouseY <= topEdge + column * buttonRowHeight + ((MAIN_BUTTON_HEIGHT_FACTOR * BUTTON_BASE_SIZE + 7) >> 3)) {
                     buttonFound = TRUE;
                 }
                 column++;
@@ -1119,9 +1169,8 @@ DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
                 // Find the row of the clicked button
                 int row = 0;
                 BOOL rowFound = FALSE;
-                int buttonCount = BUTTON_COUNT_PER_MODE[calcMode];
 
-                while (row < buttonCount && !rowFound) {
+                while (row < (calcState.mode == SCIENTIFIC_MODE ? SCIENTIFIC_CALC_ROWS : STANDARD_CALC_ROWS) && !rowFound) {
                     horizontalPosition = adjustButtonHorizontalPosition(horizontalPosition, row, 0);
                     if (mouseX >= horizontalPosition + verticalPosition &&
                         mouseX <= horizontalPosition + verticalPosition + BUTTON_BASE_SIZE) {
@@ -1134,32 +1183,29 @@ DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
                 if (rowFound) {
                     // Calculate button index and return button ID
                     int buttonIndex = buttonsPerRow * (row - 1) + column - 1;
-                    int elementIndex = 0;
-                    uint* statePtr = &elementStateTable;
 
-                    while (buttonIndex >= 0 && statePtr < &END_OF_ELEMENT_STATE_TABLE) {
-                        if ((*statePtr & 3) != calculatorMode) {
-                            buttonIndex--;
+                    // Use the correct BUTTON_ID_MAP based on the mode
+                    if (calcState.mode == SCIENTIFIC_MODE) {
+                        if (buttonIndex < sizeof(BUTTON_ID_MAP_SCIENTIFIC) / sizeof(DWORD)) {
+                            return BUTTON_ID_MAP_SCIENTIFIC[buttonIndex];
                         }
-                        statePtr++;
-                        elementIndex++;
                     }
-
-                    byte rawButtonId = ((byte*)BUTTON_ID_MAP)[elementIndex * 4];
-                    buttonId = (uint)rawButtonId;
-                    return buttonId;
+                    else { // Standard mode
+                        if (buttonIndex < sizeof(BUTTON_ID_MAP_STANDARD) / sizeof(DWORD)) {
+                            return BUTTON_ID_MAP_STANDARD[buttonIndex];
+                        }
+                    }
                 }
             }
         }
     }
     else {
         // Check for special buttons at the top
-        RECT clientRect;
-        GetClientRect(mainCalculatorWindow, &clientRect);
+        GetClientRect(calcState.windowHandle, &clientRect);
 
         for (int i = 0; i < 3; i++) {
-            if (mouseX <= clientRect.right - horizontalPosition - (calculatorMode == 0 ? 1 : 0) - 10 &&
-                mouseX > clientRect.right - horizontalPosition - rowIndex - (calculatorMode == 0 ? 1 : 0) - 10) {
+            if (mouseX <= clientRect.right - horizontalPosition - (calcState.mode == 0 ? 1 : 0) - 10 &&
+                mouseX > clientRect.right - horizontalPosition - rowIndex - (calcState.mode == 0 ? 1 : 0) - 10) {
                 return i + SPECIAL_BUTTON_OFFSET;
             }
             horizontalPosition += buttonWidth;
@@ -1168,7 +1214,6 @@ DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
 
     return 0;  // No button found
 }
-
 
 /*
  * getStatusCode()

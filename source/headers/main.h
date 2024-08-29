@@ -41,6 +41,7 @@ typedef unsigned short ushort;
 typedef unsigned int uint;
 
 extern int BUTTON_BASE_SIZE;
+extern int VERTICAL_OFFSET; // Vertical istance between button elements
 
 //Do-nothing instruction, as a placeholder.
 #define pass (void)0
@@ -81,6 +82,13 @@ extern int BUTTON_BASE_SIZE;
 #define STANDARD_CALC_COLS 5
 #define IDC_TEXT_STANDARD_MODE  0x19D  // Adjust this value based on your actual resource definitions
 #define IDC_TEXT_SCIENTIFIC_MODE 0x19E // Adjust this value based on your actual resource definitions
+
+// Constants for button dimensions and spacing
+#define SPECIAL_BUTTON_WIDTH_FACTOR    4    // Factor for special button width (4/3 * BUTTON_BASE_SIZE)
+#define SPECIAL_BUTTON_HEIGHT_FACTOR   3    // Factor for special button height (3/2 * BUTTON_BASE_SIZE)
+#define BUTTON_ROW_HEIGHT_FACTOR      17    // Factor for button row height (17 * BUTTON_BASE_SIZE)
+#define MAIN_BUTTON_HEIGHT_FACTOR     14    // Factor for main button height (14 * BUTTON_BASE_SIZE)
+#define SPECIAL_BUTTON_OFFSET 0x51          // Assuming this is the ID of the first special button
 
 //Padding and spacing (in pixels)
 #define HORIZONTAL_MARGIN 2
@@ -124,6 +132,7 @@ extern int BUTTON_BASE_SIZE;
 
 #define IDM_VIEW_STANDARD               0x9C4E  // Command to switch to standard calculator view
 
+
 static const char* STATUS_MESSAGE_TABLE[] = {
     "Success",
     "Cannot divide by zero",
@@ -142,7 +151,7 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 #define STREAM_PIPE 0x08
 #define STREAM_VALID 0x81
 
-//Calculator buttons � standard mode
+//Calculator buttons - standard mode
 // Standard Calculator Button IDs
 #define IDC_BUTTON_MC     0x80  // Memory Clear
 #define IDC_BUTTON_MR     0x81  // Memory Recall
@@ -220,7 +229,13 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 #define IDC_BUTTON_NOT    0xBB  // Bitwise NOT
 #define IDC_BUTTON_LSH    0xBC  // Left shift
 
-#define IDC_BUTTON_STA 0x8c           // Statistics button in scientific mode
+#define IDC_BUTTON_INT    0xC0  // Integer Part 
+#define IDC_BUTTON_F_E    0xC1  // Fractional Part
+#define IDC_BUTTON_DMS    0xC2  // Degrees, Minutes, Seconds
+#define IDC_BUTTON_SUM    0xC3  // Summation
+#define IDC_BUTTON_AVE    0xC4  // Average
+
+#define IDC_BUTTON_STA 0x8C     // Statistics button in scientific mode
 
 // Buttons within the statistics window
 #define IDC_BUTTON_STAT_RED  0x75    // RET (Retrieve) button
@@ -255,6 +270,7 @@ static const char* STATUS_MESSAGE_TABLE[] = {
 
 //Assumes English locale
 #define DEFAULT_DECIMAL_SEPARATOR '.'
+
 
 // Structure to represent an 80-bit extended precision floating-point number
 typedef struct {
