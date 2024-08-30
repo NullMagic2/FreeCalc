@@ -23,8 +23,8 @@
                                     the key pressed.
 
 -------------------------------------------------------------------------------*/
-#include "..//headers//input.h"
-#include "..//headers//main.h"
+#include ".//headers//input.h"
+#include ".//headers//main.h"
 
 extern _calculatorState calcState;
 
@@ -130,7 +130,7 @@ BOOL appendDigit(char* accumulatedValue, int digit)
 }
 
 /*
- * convertKeyToDigit
+ * convertKeyToDigit()
  *
  * This function converts a key code representing a calculator button
  * to its corresponding digit value. It supports digits 0-9 for decimal

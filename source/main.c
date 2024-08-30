@@ -1840,11 +1840,58 @@ void toggleScientificMode(void)
     refreshInterface();
 }
 
+/*
+ * updateButtonState()
+ *
+ * Purpose:
+ *     Updates the visual state of a calculator button on the screen.  This function handles
+ *     drawing the button in different states (pressed, released, and animated) and
+ *     displaying the button's text. It takes into account the current calculator mode
+ *     (standard or scientific) and the system's high contrast setting.
+ *
+ * Parameters:
+ *     buttonId:  The ID of the button to update. This ID should correspond to
+ *                a button defined in the windowStateTable or other button mapping structures.
+ *     state:     An integer value indicating the desired visual state of the button.
+ *                Common state values include:
+ *                - 100:  Triggers a button "click" animation.
+ *                - 0x65 (101): Draws the button in a "pressed" state.
+ *                - 0x66 (102): Draws the button in a "normal" (released) state.
+ *
+ * Remarks:
+ *     - The function first locates the button in the windowStateTable to determine its
+ *       visibility and position based on the current calculator mode (calcState.mode).
+ *     - If the button is visible in the current mode, the function calculates the button's
+ *       position and dimensions on the screen, taking into account the button spacing,
+ *       margins, and the current mode's layout.
+ *     - It uses DrawFrameControl() to draw the button's frame with the appropriate 3D effect
+ *       (raised, pushed) based on the specified state.
+ *     - The button's text is displayed using TextOutA(). The function centers the text
+ *       within the button's rectangle.
+ *     - In high contrast mode (calcState.isHighContrastMode), the function uses
+ *       getElementColor() to determine a contrasting color for the button text to
+ *       improve visibility.
+ */
 void updateButtonState(uint buttonId, int state)
 {
     int buttonIndex = 0;
     int visibleButtonCount = 0;
     int totalButtons;
+
+    const char* BUTTON_LABELS[] = {
+    "MC", "MR", "MS", "M+", "Back", "CE", "C",
+    "7", "8", "9", "/", "sqrt", "%",
+    "4", "5", "6", "*", "1/x", " ",
+    "1", "2", "3", "-", "(", ")",
+    "0", "+/-", ".", "+", "=", "Int",
+    "Sta", "Ave", "Sum", "s", "Dat", "F-E", "dms", "Exp", "ln", "log", "x^-1",
+    "Int", "Frac", "Hyp", "Sin", "Cos", "Tan", "x^2", "x^3", "n!",
+    "MC", "7", "8", "9", "/", "Mod", "And",
+    "MR", "4", "5", "6", "*", "Or", "Xor",
+    "MS", "1", "2", "3", "-", "Lsh", "Not",
+    "M+", "0", "+/-", ".", "+", "=", "Int",
+    "PI", "A", "B", "C", "D", "E", "F", "Inv", "Hyp",
+    };
 
     // Find the correct button in the button state table (windowStateTable)
     for (int i = 0; i < sizeof(windowStateTable) / sizeof(windowStateTable[0]); i++)
@@ -1863,9 +1910,9 @@ void updateButtonState(uint buttonId, int state)
     if (buttonIndex >= 0x3E)
         return; // Button not found
 
-    HDC deviceContext = GetDC(calcState.windowHandle); // Use calcState.windowHandle
+    HDC deviceContext = GetDC(calcState.windowHandle);
     RECT buttonRect, clientRect;
-    GetClientRect(calcState.windowHandle, &clientRect); // Use calcState.windowHandle
+    GetClientRect(calcState.windowHandle, &clientRect);
 
     // Calculate button position and dimensions
     int buttonX, buttonY, buttonWidth, buttonHeight;
@@ -1880,32 +1927,42 @@ void updateButtonState(uint buttonId, int state)
         totalButtons = (sizeof(BUTTON_ID_MAP_SCIENTIFIC) / sizeof(DWORD));
     }
 
-    if (visibleButtonCount < totalButtons - 3) {
-        // Main buttons
-        buttonWidth = BUTTON_BASE_SIZE;
+    // Determine button dimensions
+    buttonWidth = BUTTON_BASE_SIZE +
+        (calcState.mode == SCIENTIFIC_MODE ? SCIENTIFIC_BUTTON_EXTRA_WIDTH : 0);
+    buttonHeight = BUTTON_BASE_SIZE;
+
+    if (visibleButtonCount < totalButtons - 3)
+    {
+        // Layout for main calculator buttons
         int row = visibleButtonCount / buttonsPerRow;
         int col = visibleButtonCount % buttonsPerRow;
-        buttonX = row * (BUTTON_BASE_SIZE + 4) +
-            calculateButtonHorizontalOffset(buttonIndex) + 6 + VERTICAL_OFFSET;
-        buttonY = col * 17 + (calcState.mode == 0 ? -13 : 0) +
-            *(int*)(&BUTTON_COLUMN_CONFIG + calcState.mode * 4);
+
+        buttonX = HORIZONTAL_MARGIN + col * (buttonWidth + BUTTON_HORIZONTAL_SPACING);
+        buttonY = VERTICAL_MARGIN +
+            (BUTTON_BASE_SIZE * SPECIAL_BUTTON_HEIGHT_FACTOR) / 2 + BUTTON_VERTICAL_SPACING +
+            row * (buttonHeight + BUTTON_VERTICAL_SPACING);
     }
-    else {
-        // Special buttons
-        buttonWidth = (BUTTON_BASE_SIZE * 4) / 3 + 1;
-        buttonX = clientRect.right - ((totalButtons - visibleButtonCount) - 3) * (buttonWidth + 4)
-            - (calcState.mode == 0 ? 1 : 0) - 7;
-        if (visibleButtonCount == 0x53) {
-            buttonX -= (calcState.mode == 0 ? 2 : 1);
+    else
+    {
+        // Layout for special buttons (MC, MR, MS, M+, etc.)
+        buttonWidth = (BUTTON_BASE_SIZE * SPECIAL_BUTTON_WIDTH_FACTOR) / 3 + 1;
+        buttonX = clientRect.right -
+            ((totalButtons - visibleButtonCount) - 3) * (buttonWidth + BUTTON_HORIZONTAL_SPACING) -
+            HORIZONTAL_MARGIN - 8; // Adjusted for visual consistency 
+
+        if (visibleButtonCount == 0x53) { // Special case for a specific button 
+            buttonX -= (calcState.mode == STANDARD_MODE ? 2 : 1);
         }
-        buttonY = (calcState.mode == 0 ? -12 : 0) +
-            *(int*)(&BUTTON_ROW_CONFIG + calcState.mode * 4);
+
+        buttonY = VERTICAL_MARGIN;
     }
 
+    // Calculate button rectangle
     buttonRect.left = buttonX;
-    buttonRect.top = (buttonY * BUTTON_SCALING_FACTOR + 7) >> 3;
+    buttonRect.top = buttonY;
     buttonRect.right = buttonX + buttonWidth;
-    buttonRect.bottom = ((buttonY + BUTTON_VERTICAL_SPACING) * BUTTON_SCALING_FACTOR + 7) >> 3;
+    buttonRect.bottom = buttonY + buttonHeight;
 
     // Draw button based on state
     switch (state) {
@@ -1918,7 +1975,8 @@ void updateButtonState(uint buttonId, int state)
         break;
     case 0x65: // Pressed
         DrawFrameControl(deviceContext, &buttonRect, DFC_BUTTON, DFCS_PUSHED);
-        buttonRect.left++; buttonRect.top++;
+        buttonRect.left++;
+        buttonRect.top++;
         break;
     case 0x66: // Normal
         DrawFrameControl(deviceContext, &buttonRect, DFC_BUTTON, DFCS_BUTTONPUSH);
@@ -1926,21 +1984,21 @@ void updateButtonState(uint buttonId, int state)
     }
 
     // Draw button text
-    const char* buttonText = (&lpString_0040b4a0)[buttonIndex];
+    const char* buttonText = BUTTON_LABELS[buttonIndex];
     int textLength = lstrlenA(buttonText);
 
     if (calcState.isHighContrastMode) { // High contrast mode
         COLORREF textColor = GetSysColor(COLOR_BTNTEXT);
         COLORREF backgroundColor = GetSysColor(COLOR_BTNFACE);
-        uVar5 = getElementColor(buttonIndex, backgroundColor, textColor);
-        SetTextColor(deviceContext, uVar5);
+        uint contrastColor = getElementColor(buttonIndex, backgroundColor, textColor);
+        SetTextColor(deviceContext, contrastColor);
     }
 
     SetBkMode(deviceContext, TRANSPARENT);
     SIZE textSize;
     GetTextExtentPointA(deviceContext, buttonText, textLength, &textSize);
     int textX = (buttonWidth + (buttonX * 2 - textSize.cx)) / 2;
-    int textY = ((buttonY + 3) * BUTTON_SCALING_FACTOR * 2 + 15) >> 4;
+    int textY = (buttonHeight - textSize.cy) / 2;
     TextOutA(deviceContext, textX, textY, buttonText, textLength);
 
     ReleaseDC(calcState.windowHandle, deviceContext);

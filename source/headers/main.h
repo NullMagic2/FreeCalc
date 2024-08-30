@@ -34,7 +34,7 @@
 #include <windowsx.h>
 #include <winnt.h>
 #include <stdbool.h>
-#include "..//headers//input.h"
+#include ".//headers//input.h"
 #include ".//headers//operations.h"
 
 typedef unsigned short ushort;
