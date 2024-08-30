@@ -416,7 +416,7 @@ void initStandardStreams(void);
 void initEnvironmentVariables(void);
 void handleCalculationError(int errorCode);
 BOOL handleContextHelp(HWND hwnd, HINSTANCE hInstance, UINT param);
-void processButtonClick(uint currentKeyPressed);
+void processButtonClick(DWORD currentKeyPressed);
 void refreshInterface(void);
 ATOM registerCalcClass(HINSTANCE appInstance);
 void resetCalculatorState(void);

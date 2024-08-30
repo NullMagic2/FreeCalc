@@ -270,14 +270,14 @@ void adjustMemoryAllocation(void) {
  * @param None
  * @return None
  */
-LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     LRESULT result = 0;
-    int iVar;
-    BOOL bVar;
-    HMENU menuHandle;
-    DWORD DVar;
-    UINT commandID;
+    int tempVar;
+    BOOL boolVar;
+    HMENU hMenu;
+    DWORD dwordVar;
+    UINT cmdID;
     POINT ptMouse;
     UINT menuItemID;
     WORD mouseX, mouseY;
@@ -287,22 +287,22 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
     switch (uMsg)
     {
     case WM_ACTIVATE:
-        iVar = (wParam == WA_ACTIVE) ? SW_SHOW : SW_HIDE;
+        tempVar = (wParam == WA_ACTIVE) ? SW_SHOW : SW_HIDE;
         if (calcState.isScientificModeActive && calcState.scientificWindowHandle != NULL)
         {
-            ShowWindow(calcState.scientificWindowHandle, iVar);
+            ShowWindow(calcState.scientificWindowHandle, tempVar);
         }
         break;
 
     case WM_DESTROY:
-        WinHelpA(calcState.windowHandle, calcState.helpFilePath, HELP_QUIT, 0);
+        WinHelp(calcState.windowHandle, calcState.helpFilePath, HELP_QUIT, 0);
         PostQuitMessage(0);
         return 0;
 
     case WM_SYSCOLORCHANGE:
         if (lParam == 0 ||
-            lstrcmpA((LPCSTR)lParam, "colors") == 0 ||
-            lstrcmpA((LPCSTR)lParam, "scheme") == 0)
+            lstrcmp((LPCSTR)lParam, "colors") == 0 ||
+            lstrcmp((LPCSTR)lParam, "scheme") == 0)
         {
             initColors(0);
         }
@@ -310,26 +310,26 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
 
     case WM_PAINT:
         refreshInterface();
-        if (errorState == 0)
+        if (calcState.errorState == 0)
         {
-            if (currentKeyPressed < KEY_RANGE_START || currentKeyPressed > KEY_RANGE_END)
+            if (calcState.keyPressed < KEY_RANGE_START || calcState.keyPressed > KEY_RANGE_END)
             {
                 updateDisplay();
             }
-            else
-            {
-                DWORD tempHighPart = currentValueHighPart;
-                DWORD tempAccumulated = accumulatedValue;
-                currentValueHighPart = defaultPrecisionValue;
-                accumulatedValue = lastValue;
+            else {
+                DWORD tempHighPart = calcState.currentValueHighPart;
+                char tempAccumulated[MAX_DISPLAY_DIGITS]; // Temporary string buffer
+                strncpy_s(tempAccumulated, sizeof(tempAccumulated), calcState.accumulatedValue, _TRUNCATE); // Store original string
+                calcState.currentValueHighPart = calcState.defaultPrecisionValue;
+                snprintf(calcState.accumulatedValue, MAX_DISPLAY_DIGITS, "%u", calcState.lastValue);  // Copy DWORD to array as a string 
                 updateDisplay();
-                accumulatedValue = tempAccumulated;
-                currentValueHighPart = tempHighPart;
+                strncpy_s(calcState.accumulatedValue, sizeof(calcState.accumulatedValue), tempAccumulated, _TRUNCATE); // Restore original string
+                calcState.currentValueHighPart = tempHighPart;
             }
         }
         else
         {
-            handleCalculationError(errorCodeBase);
+            handleCalculationError(calcState.errorCodeBase);
         }
         break;
 
@@ -338,78 +338,78 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         break;
 
     case WM_HELP:
-        commandID = 0;
-        if (windowHandle == (HWND)wParam)
+        cmdID = 0;
+        if (hWnd == (HWND)wParam)
         {
             ptMouse.x = GET_X_LPARAM(lParam);
             ptMouse.y = GET_Y_LPARAM(lParam);
-            ScreenToClient(windowHandle, &ptMouse);
-            commandID = getCalculatorButton((WORD)ptMouse.x, (WORD)ptMouse.y);
+            ScreenToClient(hWnd, &ptMouse);
+            cmdID = getCalculatorButton((WORD)ptMouse.x, (WORD)ptMouse.y);
         }
-        if (commandID == 0)
+        if (cmdID == 0)
         {
-            WinHelpA((HWND)wParam, calcState.helpFilePath, HELP_WM_HELP, HELP_CONTEXT_DATA);
+            WinHelp((HWND)wParam, calcState.helpFilePath, HELP_WM_HELP, HELP_CONTEXT_DATA);
             return 0;
         }
-        bVar = handleContextHelp(calcState.windowHandle, calcState.appInstance, lParam);
-        if (bVar)
+        boolVar = handleContextHelp(calcState.windowHandle, calcState.appInstance, lParam);
+        if (boolVar)
         {
-            if (commandID > MEMORY_BUTTON_START && commandID < MEMORY_BUTTON_END)
+            if (cmdID > MEMORY_BUTTON_START && cmdID < MEMORY_BUTTON_END)
             {
-                commandID = MEMORY_BUTTON_DEFAULT;
+                cmdID = MEMORY_BUTTON_DEFAULT;
             }
-            if (commandID > DIGIT_BUTTON_START && commandID < DIGIT_BUTTON_END)
+            if (cmdID > DIGIT_BUTTON_START && cmdID < DIGIT_BUTTON_END)
             {
-                commandID = DIGIT_BUTTON_DEFAULT;
+                cmdID = DIGIT_BUTTON_DEFAULT;
             }
-            WinHelpA((HWND)wParam, calcState.helpFilePath, HELP_CONTEXTMENU, commandID);
+            WinHelp((HWND)wParam, calcState.helpFilePath, HELP_CONTEXTMENU, cmdID);
             return 0;
         }
         break;
 
     case WM_COMMAND:
-        commandID = LOWORD(wParam);
-        if (HIWORD(wParam) == 1 && commandID < MAX_COMMAND_ID)
+        cmdID = LOWORD(wParam);
+        if (HIWORD(wParam) == 1 && cmdID < MAX_COMMAND_ID)
         {
             for (int i = 0; i < 0x3d; i++)
             {
-                if ((elementStateTable[i] >> 8 & 0xff) == commandID &&
+                if ((elementStateTable[i] >> 8 & 0xff) == cmdID &&
                     (elementStateTable[i] & 3) != calcState.mode)
                 {
-                    updateButtonState(commandID, 100);
+                    updateButtonState(cmdID, 100);
                     break;
                 }
             }
         }
-        if (commandID < 0x3d)
+        if (cmdID < 0x3d)
         {
-            processButtonClick(commandID);
+            processButtonClick(cmdID);
         }
         break;
 
     case WM_INITMENUPOPUP:
         if (IsClipboardFormatAvailable(CF_TEXT))
         {
-            commandID = MF_ENABLED;
+            cmdID = MF_ENABLED;
         }
         else
         {
-            commandID = MF_GRAYED;
+            cmdID = MF_GRAYED;
         }
         menuItemID = ID_EDIT_PASTE;
-        menuHandle = GetMenu(windowHandle);
-        EnableMenuItem(menuHandle, menuItemID, commandID);
+        hMenu = GetMenu(hWnd);
+        EnableMenuItem(hMenu, menuItemID, cmdID);
         break;
 
     case WM_CTLCOLORSTATIC:
-        iVar = GetDlgCtrlID((HWND)lParam);
-        if (iVar == 0x19d || iVar == 0x19e)
+        tempVar = GetDlgCtrlID((HWND)lParam);
+        if (tempVar == 0x19d || tempVar == 0x19e)
         {
             HBRUSH hBrush = GetSysColorBrush(COLOR_WINDOW);
-            DVar = GetSysColor(COLOR_WINDOW);
-            SetBkColor((HDC)wParam, DVar);
-            DVar = GetSysColor(COLOR_WINDOWTEXT);
-            SetTextColor((HDC)wParam, DVar);
+            dwordVar = GetSysColor(COLOR_WINDOW);
+            SetBkColor((HDC)wParam, dwordVar);
+            dwordVar = GetSysColor(COLOR_WINDOWTEXT);
+            SetTextColor((HDC)wParam, dwordVar);
             return (LRESULT)hBrush;
         }
         break;
@@ -419,10 +419,10 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         mouseY = HIWORD(lParam);
         if (currentPressedButtonID != INVALID_BUTTON)
         {
-            commandID = getCalculatorButton(mouseX, mouseY);
-            if (commandID == currentPressedButtonID || isButtonPressed)
+            cmdID = getCalculatorButton(mouseX, mouseY);
+            if (cmdID == currentPressedButtonID || isButtonPressed)
             {
-                if (commandID == currentPressedButtonID && isButtonPressed)
+                if (cmdID == currentPressedButtonID && isButtonPressed)
                 {
                     updateButtonState(currentPressedButtonID, STATE_DOWN);
                     isButtonPressed = FALSE;
@@ -439,11 +439,11 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
     case WM_LBUTTONDOWN:
         mouseX = LOWORD(lParam);
         mouseY = HIWORD(lParam);
-        commandID = getCalculatorButton(mouseX, mouseY);
-        if (commandID != 0)
+        cmdID = getCalculatorButton(mouseX, mouseY);
+        if (cmdID != 0)
         {
-            currentPressedButtonID = commandID;
-            updateButtonState(commandID, STATE_DOWN);
+            currentPressedButtonID = cmdID;
+            updateButtonState(cmdID, STATE_DOWN);
             isButtonPressed = FALSE;
             SetCapture(calcState.windowHandle);
         }
@@ -453,21 +453,21 @@ LRESULT CALLBACK calcWindowProc(HWND windowHandle, UINT uMsg, WPARAM wParam, LPA
         ReleaseCapture();
         mouseX = LOWORD(lParam);
         mouseY = HIWORD(lParam);
-        commandID = getCalculatorButton(mouseX, mouseY);
-        if (commandID == currentPressedButtonID)
+        cmdID = getCalculatorButton(mouseX, mouseY);
+        if (cmdID == currentPressedButtonID)
         {
-            if (commandID != 0)
+            if (cmdID != 0)
             {
-                updateButtonState(commandID, STATE_UP);
+                updateButtonState(cmdID, STATE_UP);
                 isButtonPressed = TRUE;
-                processButtonClick(commandID);
+                processButtonClick(cmdID);
             }
         }
         currentPressedButtonID = INVALID_BUTTON;
         break;
 
     default:
-        return DefWindowProcA(windowHandle, uMsg, wParam, lParam);
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
     }
 
     return result;
@@ -1444,7 +1444,7 @@ BOOL hasDecimalSeparator(const char* str) {
  *
  * No return value.
  */
-void processButtonClick(uint currentKeyPressed)
+void processButtonClick(DWORD currentKeyPressed)
 {
     BOOL isLastInputComplete;
     BOOL isValidInput;
