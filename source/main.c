@@ -739,28 +739,25 @@ DWORD initCalcRuntime(int initializationFlags)
  *
  * @param forceUpdate     If true, forces a complete update of the interface regardless of changes
  */
-void initColors(int forceUpdate)
-{
+void initColors(int forceUpdate) {
     char previousDecimalSeparator;
     DWORD backgroundColor;
     BOOL isIconic;
     int windowHeight, windowWidth;
     HMENU menuHandle;
-    HDC hDC;
+    HDC hDC = NULL;
     HBRUSH hBackgroundBrush;
     HWND hChildWindow;
-    LPCSTR* mode_text_ptr;
     WORD* pWindowState;
     BOOL backgroundColorChanged;
     char backgroundColorString[20];
     RECT windowRect;
-    int standardModeWidth, standardModeHeight;
-    int scientificModeWidth, scientificModeHeight;
+    int standardModeWidth = 0, standardModeHeight = 0;
+    int scientificModeWidth = 0, scientificModeHeight = 0;
     static int cxChar, cyChar;
     const char* currentModeText = calcState.modeText[calcState.mode];
     int modeTextID;
-    int totalWidth; //Total width of the calculator
-
+    int totalWidth; //Total width of the calculator 
     int VERTICAL_OFFSET = 0;
     int BUTTON_BASE_SIZE = 0;
 
@@ -790,10 +787,18 @@ void initColors(int forceUpdate)
     if ((previousDecimalSeparator != calcState.decimalSeparator) || backgroundColorChanged || forceUpdate) {
         SetDecimalSeparator(&calcState);
 
+        hDC = GetDC(calcWindows.main);
+        if (hDC == NULL) {
+            // Handle error: unable to get device context
+            return;
+        }
+
         TEXTMETRIC tm;
         GetTextMetrics(hDC, &tm);
         cxChar = tm.tmAveCharWidth;
         cyChar = tm.tmHeight + tm.tmExternalLeading;
+
+        ReleaseDC(calcWindows.main, hDC);
 
         isIconic = IsIconic(calcWindows.main);
         if (!isIconic) {
@@ -836,6 +841,11 @@ void initColors(int forceUpdate)
                 windowHeight = standardModeHeight;
             }
             else {  // Scientific mode
+                // Calculate standardModeHeight first
+                int standardVerticalDialogUnits = (STANDARD_CALC_ROWS * BUTTON_BASE_SIZE) +
+                    ((STANDARD_CALC_ROWS - 1) * BUTTON_VERTICAL_SPACING) +
+                    (2 * VERTICAL_MARGIN);
+                standardModeHeight = (int)(((double)standardVerticalDialogUnits * cyChar) / 8.0);
 
                 int horizontalDialogUnits = (SCIENTIFIC_CALC_COLS * BUTTON_BASE_SIZE) +
                     ((SCIENTIFIC_CALC_COLS - 1) * calcState.buttonHorizontalSpacing) +
@@ -877,9 +887,12 @@ void initColors(int forceUpdate)
             // Fill window background with new color
             SetRect(&windowRect, 0, 0, standardModeWidth, standardModeHeight);
             hDC = GetDC(calcWindows.main);
-            hBackgroundBrush = (HBRUSH)GetStockObject(BLACK_BRUSH);
-            FillRect(hDC, &windowRect, hBackgroundBrush);
-            ReleaseDC(calcWindows.main, hDC);
+            if (hDC != NULL) {
+                hBackgroundBrush = CreateSolidBrush(backgroundColor);
+                FillRect(hDC, &windowRect, hBackgroundBrush);
+                DeleteObject(hBackgroundBrush);
+                ReleaseDC(calcWindows.main, hDC);
+            }
 
             // Update visibility of interface elements
             pWindowState = &windowStateTable[0];
@@ -893,20 +906,14 @@ void initColors(int forceUpdate)
 
             // Set up scientific mode if necessary
             if (calcState.mode != SCIENTIFIC_MODE) {
-                pass;
-                //setupCalculatorMode(123);
+                // setupCalculatorMode(123);  // Uncomment and implement this function if needed
             }
 
             if ((calcState.memoryRegister[1] & 0x7fffffff | calcState.memoryRegister[0]) == 0) {
                 currentModeText = calcState.modeText[calcState.mode];
             }
 
-            if (calcState.mode == STANDARD_MODE) {
-                modeTextID = IDC_TEXT_STANDARD_MODE;
-            }
-            else {
-                modeTextID = IDC_TEXT_SCIENTIFIC_MODE;
-            }
+            modeTextID = (calcState.mode == STANDARD_MODE) ? IDC_TEXT_STANDARD_MODE : IDC_TEXT_SCIENTIFIC_MODE;
 
             SetDlgItemTextA(calcWindows.main, modeTextID, currentModeText);
         }
@@ -1493,7 +1500,16 @@ void processButtonClick(uint currentKeyPressed)
                 // then convert back to a string.
                 LONGLONG accumulatedInt = strtol(calcState.accumulatedValue, NULL, calcState.numberBase);
                 accumulatedInt = calcState.numberBase * accumulatedInt + digit * calcState.currentSign;
-                _ltoa(accumulatedInt, calcState.accumulatedValue, calcState.numberBase);
+
+                // Use ltoa_s instead of _ltoa
+                errno_t conversionResult = _ltoa_s(accumulatedInt, calcState.accumulatedValue,
+                    sizeof(calcState.accumulatedValue), calcState.numberBase);
+
+                if (conversionResult != 0) {
+                    // Handle conversion error
+                    showRunTimeError(11); // Assuming 11 is the error code for conversion failure
+                    return;
+                }
             }
         }
         else {
