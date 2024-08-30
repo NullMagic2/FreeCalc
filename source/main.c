@@ -59,12 +59,6 @@ DWORD supportedCodepages[NUM_SUPPORTED_CODEPAGES] = {
     850   // OEM (MS-DOS Latin US) - Useful for compatibility with older applications or files
 };
 
-typedef struct {
-    BYTE start;   // Starting character code of the range
-    BYTE end;     // Ending character code of the range
-    BYTE flags;   // Bit flags representing the character properties for the range
-} CharRange;
-
 CharRange charRangeTable[NUM_SUPPORTED_CODEPAGES * 6];  // 6 ranges per code page
 
 BYTE charTypeFlags[256] = { 0 }; // Initialize all elements to 0
@@ -684,7 +678,7 @@ void initApplicationPath(void)
     // Allocate memory for path components and string data
     pathComponents = (char**)allocateMemoryFromHeap(componentCount * 4 + pathDataSize);
     if (pathComponents == (char**)0x0) {
-        showRunTimeError(8);  // Memory allocation error
+        showRunTimeError(MEM_ALLOC_ERROR); 
         return;
     }
 
@@ -960,7 +954,7 @@ void initEnvironmentVariables(void)
     size_t totalSize = (envVarCount + 1) * sizeof(int) + strlen(envString) + 1;
     char** envVarArray = (char**)allocateMemoryFromHeap(totalSize);
     if (envVarArray == NULL) {
-        showRunTimeError(9);  // Memory allocation error
+        showRunTimeError(MEM_ALLOC_ERROR);  
         return;
     }
 
@@ -974,7 +968,12 @@ void initEnvironmentVariables(void)
     while (*envString != '\0') {
         if (*envString != '=') {
             *envVarArray++ = destPtr; // Store pointer to variable name in the pointer array
-            strcpy(destPtr, envString); // Copy the entire environment string (name=value)
+            size_t remainingSize = totalSize - (destPtr - (char*)envVariables.variables);
+            errno_t err = strcpy_s(destPtr, remainingSize, envString);
+            if (err != 0) {
+                showRunTimeError(STRING_COPY_ERROR);
+                return;
+            }
             destPtr += strlen(destPtr) + 1;  // Move destPtr to the end of the copied string 
         }
         // Move to the next environment string
@@ -983,7 +982,6 @@ void initEnvironmentVariables(void)
 
     // Null-terminate the environment variable array 
     *envVarArray = NULL;
-
 }
 
 /*
@@ -2021,43 +2019,94 @@ void updateDecimalSeparator()
     calcState.decimalSeparatorBuffer[1] = '\0';
 }
 
+/*
+ * updateDisplay()
+ *
+ * Purpose:
+ *     Updates the calculator's display to show either the currently entered number
+ *     or the result of a calculation. This function handles formatting the number
+ *     appropriately based on the current number base (decimal, hexadecimal, octal,
+ *     or binary), and whether scientific notation is enabled.
+ *
+ * Parameters:
+ *     None. (Uses data from the calcState structure)
+ *
+ * Return Value:
+ *     None.
+ *
+ * Remarks:
+ *     - This function checks the calcState.isInputModeActive flag to determine if the
+ *       calculator is currently accepting numeric input or if it should display
+ *       the result of a calculation or function.
+ *     - If in input mode (calcState.isInputModeActive is TRUE), the function displays
+ *       the current contents of calcState.accumulatedValue directly, assuming it's in the
+ *       correct format for the selected number base.
+ *     - If not in input mode (calcState.isInputModeActive is FALSE), the function formats the
+ *       calculated result (calcState.accumulatedValue and calcState.currentValueHighPart)
+ *       according to the current numberBase:
+ *         - Decimal (base 10):
+ *           - Uses formatNumberForDisplay() to format the number.
+ *           - If scientific notation is enabled (calcState.mode == SCIENTIFIC_NOTATION)
+ *             and the number has no fractional part, it calls formatScientificNotation()
+ *             to display the result in scientific notation.
+ *           - Otherwise, it calls formatFloatAutomatically() for normal decimal display.
+ *         - Non-Decimal Bases (2, 8, 16):
+ *           - Calls processFloatingPointForDisplay() to convert the floating-point result
+ *             to a displayable string in the selected base.
+ *           - Checks for potential overflow and displays an error message if necessary.
+ *           - Uses intToBaseString() to convert the integer part of the result to the
+ *             selected number base.
+ *           - Converts the resulting string to uppercase using CharUpperA() for
+ *             hexadecimal digits.
+ *     - The final formatted string is displayed in the calculator's display control
+ *       using SetDlgItemTextA(). The control ID is determined based on calcState.mode
+ *       and the appropriate constants (IDC_TEXT_STANDARD_MODE,
+ *       IDC_TEXT_SCIENTIFIC_MODE).
+ */
 void updateDisplay(void)
 {
-    char displayBuffer[64];
-    char* resultString;
+    char displayBuffer[MAX_DISPLAY_DIGITS];
+    char* displayString;
 
-    if (!isInputModeActive) {
-        if (numberBase == 10) {
-            formatNumberForDisplay(displayBuffer, _accumulatedValue, 13);
-            if (isScientificNotationEnabled && !hasDecimalPart) {
-                formatScientificNotation(displayBuffer, &displayResultBuffer);
+    if (calcState.isInputModeActive == 0) {
+        if (calcState.numberBase == 10) {
+            formatNumberForDisplay(displayBuffer, calcState.accumulatedValue, MAX_DECIMAL_DIGITS);
+            if ((calcState.mode == SCIENTIFIC_NOTATION) && (calcState.currentValueHighPart == 0)) {
+                formatScientificNotation(displayBuffer, displayBuffer);
             }
             else {
-                formatFloatAutomatically(displayBuffer, &displayResultBuffer);
+                formatFloatAutomatically(displayBuffer, displayBuffer);
             }
-            resultString = displayResultBuffer;
+            displayString = displayBuffer;
         }
         else {
-            float10 formattedValue = processFloatingPointForDisplay(accumulatedValue, currentValueHighPart);
-            _accumulatedValue = (double)formattedValue;
-
-            if (ABS(formattedValue) > 4294967295.0) {
-                int errorCode = (_accumulatedValue < 0.0) ? 4 : 3;
-                handleCalculationError(errorCode);
+            processFloatingPointForDisplay(calcState.accumulatedValue, calcState.currentValueHighPart);
+            double value = atof(calcState.accumulatedValue);
+            if (fabs(value) > MAX_INT) {
+                handleCalculationError((uint)(value < 0.0) * 2 + 3);
                 return;
             }
 
-            long long integerValue = __ftol();
-            intToBaseString(integerValue & _DAT_0040c0fc, displayResultBuffer, numberBase);
-            CharUpperA(displayResultBuffer);
-            resultString = displayResultBuffer;
+            DWORD integerPartMask;
+
+            switch (calcState.numberBase) {
+            case 2:  integerPartMask = INTEGER_PART_MASK_BINARY; break;
+            case 8:  integerPartMask = INTEGER_PART_MASK_OCTAL; break;
+            case 10: integerPartMask = INTEGER_PART_MASK_DECIMAL; break;
+            case 16: integerPartMask = INTEGER_PART_MASK_HEX; break;
+            default: integerPartMask = 0xFFFFFFFF;
+            }
+
+            intToBaseString((uint)__ftol(value) & integerPartMask, displayBuffer, calcState.numberBase);
+            CharUpperA(displayBuffer);
+            displayString = displayBuffer;
         }
     }
     else {
-        resultString = (numberBase == 10) ? (char*)&DAT_0040b180 : displayResultBuffer;
+        displayString = (calcState.numberBase == 10) ? calcState.accumulatedValue : displayBuffer;
     }
-
-    SetDlgItemTextA(mainCalculatorWindow, calculatorMode + 0x19d, resultString);
+    SetDlgItemTextA(calcState.windowHandle,
+        (uint)calcState.mode * 2 + IDC_TEXT_STANDARD_MODE, displayString);
 }
 
 
@@ -2082,85 +2131,83 @@ BOOL CALLBACK statisticsWindowProc(HWND windowHandle, UINT message, WPARAM wPara
     static int dataPointCount = 0;
 
     switch (message) {
-        case WM_INITDIALOG: {
-            // Get the handle to the statistics display listbox
-            hwndStatisticsDisplay = GetDlgItem(windowHandle, ID_STAT_BUTTON);
+    case WM_INITDIALOG: {
+        hwndStatisticsDisplay = GetDlgItem(windowHandle, IDC_BUTTON_STA);
+        updateStatisticsDisplay(windowHandle);
+        return TRUE;
+    }
 
-            // Initialize statistics display
-            updateStatisticsDisplay(windowHandle);
-            return TRUE;
-        }
-
-        case WM_COMMAND:
-            switch (LOWORD(wParam)) {
-            case IDC_BUTTON_STAT_RED: {
-                // Copy selected data point to calculator
-                if (selectedIndex != -1) {
-                    strcpy(calcState.accumulatedValue, selectedDataPointStr);
-                    updateDisplay(); // Update the main calculator display
+    case WM_COMMAND:
+        switch (LOWORD(wParam)) {
+        case IDC_BUTTON_STAT_RED: {
+            if (selectedIndex != -1) {
+                errno_t err = strcpy_s(calcState.accumulatedValue, sizeof(calcState.accumulatedValue), selectedDataPointStr);
+                if (err == 0) {
+                    updateDisplay();
                 }
                 else {
-                    MessageBeep(0); // No item selected
+                    MessageBox(windowHandle, "Error copying selected data", "Error", MB_OK | MB_ICONERROR);
                 }
-                break;
-            }
-
-            case IDC_BUTTON_STAT_LOAD: {
-                // Load data from clipboard
-                if (OpenClipboard(windowHandle)) {
-                    HANDLE clipboardData = GetClipboardData(CF_TEXT);
-                    if (clipboardData != NULL) {
-                        char* clipboardText = (char*)GlobalLock(clipboardData);
-                        parseAndStoreDataPoints(clipboardText); // Parse and store clipboard data
-                        GlobalUnlock(clipboardData);
-                        updateStatisticsDisplay(windowHandle);
-                    }
-                    CloseClipboard();
-                }
-                break;
-            }
-
-            case IDC_BUTTON_STAT_CE:
-                // Clear last entry
-                if (dataPointCount > 0) {
-                    dataPointCount--;
-                    // Remove the last item from the display
-                    SendMessage(hwndStatisticsDisplay, LB_DELETESTRING, dataPointCount, 0);
-                    updateStatisticsDisplay(windowHandle);
-                }
-                break;
-
-            case IDC_BUTTON_STAT_CAD:
-                // Clear all data
-                dataPointCount = 0;
-                // Clear the statistics display
-                SendMessage(hwndStatisticsDisplay, LB_RESETCONTENT, 0, 0);
-                updateStatisticsDisplay(windowHandle);
-                break;
-            }
-            return TRUE;
-
-        case WM_CLOSE: {
-            calcState.statisticsWindowOpen = FALSE;
-            DestroyWindow(windowHandle);
-            return TRUE;
-        }
-
-        case WM_LBUTTONDOWN: {
-            // Handle listbox item selection
-            int xPos = GET_X_LPARAM(lParam);
-            int yPos = GET_Y_LPARAM(lParam);
-
-            selectedIndex = SendMessage(hwndStatisticsDisplay, LB_ITEMFROMPOINT, 0, MAKELONG(xPos, yPos));
-            if (selectedIndex != LB_ERR && selectedIndex < dataPointCount) {
-                // Get the text of the selected item
-                SendMessage(hwndStatisticsDisplay, LB_GETTEXT, selectedIndex, (LPARAM)selectedDataPointStr);
             }
             else {
-                selectedIndex = -1;  // No item selected
+                MessageBeep(0);
             }
             break;
         }
+
+        case IDC_BUTTON_STAT_LOAD: {
+            if (OpenClipboard(windowHandle)) {
+                HANDLE clipboardData = GetClipboardData(CF_TEXT);
+                if (clipboardData != NULL) {
+                    char* clipboardText = (char*)GlobalLock(clipboardData);
+                    if (clipboardText) {
+                        parseAndStoreDataPoints(clipboardText);
+                        GlobalUnlock(clipboardData);
+                        updateStatisticsDisplay(windowHandle);
+                    }
+                }
+                CloseClipboard();
+            }
+            break;
+        }
+
+        case IDC_BUTTON_STAT_CE:
+            if (dataPointCount > 0) {
+                dataPointCount--;
+                SendMessage(hwndStatisticsDisplay, LB_DELETESTRING, dataPointCount, 0);
+                updateStatisticsDisplay(windowHandle);
+            }
+            break;
+
+        case IDC_BUTTON_STAT_CAD:
+            dataPointCount = 0;
+            SendMessage(hwndStatisticsDisplay, LB_RESETCONTENT, 0, 0);
+            updateStatisticsDisplay(windowHandle);
+            break;
+        }
+        return TRUE;
+
+    case WM_CLOSE: {
+        calcState.statisticsWindowOpen = FALSE;
+        DestroyWindow(windowHandle);
+        return TRUE;
+    }
+
+    case WM_LBUTTONDOWN: {
+        int xPos = GET_X_LPARAM(lParam);
+        int yPos = GET_Y_LPARAM(lParam);
+
+        selectedIndex = SendMessage(hwndStatisticsDisplay, LB_ITEMFROMPOINT, 0, MAKELONG(xPos, yPos));
+        if (selectedIndex != LB_ERR && selectedIndex < dataPointCount) {
+            if (SendMessage(hwndStatisticsDisplay, LB_GETTEXT, selectedIndex, (LPARAM)selectedDataPointStr) == LB_ERR) {
+                selectedIndex = -1;
+            }
+        }
+        else {
+            selectedIndex = -1;
+        }
+        break;
+    }
     }
 
     return FALSE;

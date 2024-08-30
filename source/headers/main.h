@@ -34,6 +34,8 @@
 #include <windowsx.h>
 #include <winnt.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <math.h>
 #include ".//headers//input.h"
 #include ".//headers//operations.h"
 
@@ -51,6 +53,8 @@ extern int VERTICAL_OFFSET; // Vertical istance between button elements
 
 #define INVALID_BUTTON    0xffffffff  // Represents an invalid or unassigned button ID, using max DWORD value
 #define HELP_CONTEXT_DATA 0x40c128    // Pointer to help context data structure, likely used with WinHelp API
+
+#define MAX_INT  0xFFFFFFFF           //Unsigned int constant used to check if an overflow occurred.
 
 #define MEMORY_BUTTON_START 0x40      // Start of memory button ID range (64 in decimal)
 #define MEMORY_BUTTON_END 0x47        // End of memory button ID range (71 in decimal)
@@ -131,6 +135,12 @@ extern int VERTICAL_OFFSET; // Vertical istance between button elements
 #define MAX_STANDARD_PRECISION 12  // Maximum precision for standard mode (32 bits)
 
 #define IDM_VIEW_STANDARD               0x9C4E  // Command to switch to standard calculator view
+
+//Integer masks
+#define INTEGER_PART_MASK_BINARY 0xFFFFFFFF // Mask for binary (32 bits)
+#define INTEGER_PART_MASK_OCTAL  0x1FFFFFFF // Mask for octal (29 bits - to fit in 32 bits)
+#define INTEGER_PART_MASK_DECIMAL 0xFFFFFFFF // Mask for decimal (32 bits)
+#define INTEGER_PART_MASK_HEX    0xFFFFFFF  // Mask for hexadecimal (28 bits)
 
 
 static const char* STATUS_MESSAGE_TABLE[] = {
@@ -332,6 +342,9 @@ typedef struct {
 
 #define MAX_OPERATOR_STACK 25 //Max level of parenthesis identiations
 
+//Runtime errors
+#define MEM_ALLOC_ERROR 8
+#define STRING_COPY_ERROR 9
 
 typedef struct {
     char accumulatedValue[MAX_DISPLAY_DIGITS];  // Current value or result of the last operation
