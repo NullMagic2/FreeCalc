@@ -1842,50 +1842,64 @@ void toggleScientificMode(void)
 
 void updateButtonState(uint buttonId, int state)
 {
-    uint* elementState = &elementStateTable;
     int buttonIndex = 0;
     int visibleButtonCount = 0;
+    int totalButtons;
 
-    // Find the correct button in the element state table
-    while (elementState < &END_OF_ELEMENT_STATE_TABLE) {
-        UINT currentState = *elementState;
-        if (((currentState >> 8 & 0xFF) == buttonId) && ((currentState & 3) != calculatorMode)) {
+    // Find the correct button in the button state table (windowStateTable)
+    for (int i = 0; i < sizeof(windowStateTable) / sizeof(windowStateTable[0]); i++)
+    {
+        if ((windowStateTable[i] & 0x7FFF) == buttonId &&
+            ((windowStateTable[i] >> 15) != calcState.mode))
+        {
             break;
         }
-        if ((currentState & 3) != calculatorMode) {
+        if ((windowStateTable[i] >> 15) != calcState.mode) {
             visibleButtonCount++;
         }
-        elementState++;
         buttonIndex++;
     }
 
-    if (buttonIndex >= 0x3E) return; // Button not found
+    if (buttonIndex >= 0x3E)
+        return; // Button not found
 
-    HDC deviceContext = GetDC(mainCalculatorWindow);
+    HDC deviceContext = GetDC(calcState.windowHandle); // Use calcState.windowHandle
     RECT buttonRect, clientRect;
-    GetClientRect(mainCalculatorWindow, &clientRect);
+    GetClientRect(calcState.windowHandle, &clientRect); // Use calcState.windowHandle
 
     // Calculate button position and dimensions
     int buttonX, buttonY, buttonWidth, buttonHeight;
-    int buttonsPerRow = *(int*)(&BUTTONS_PER_ROW + calculatorMode * 4);
-    int totalButtons = *(int*)(&DAT_0040c038 + calculatorMode * 4);
+    int buttonsPerRow;
+
+    if (calcState.mode == STANDARD_MODE) {
+        buttonsPerRow = STANDARD_CALC_COLS;
+        totalButtons = (sizeof(BUTTON_ID_MAP_STANDARD) / sizeof(DWORD));
+    }
+    else {
+        buttonsPerRow = SCIENTIFIC_CALC_COLS;
+        totalButtons = (sizeof(BUTTON_ID_MAP_SCIENTIFIC) / sizeof(DWORD));
+    }
 
     if (visibleButtonCount < totalButtons - 3) {
         // Main buttons
         buttonWidth = BUTTON_BASE_SIZE;
         int row = visibleButtonCount / buttonsPerRow;
         int col = visibleButtonCount % buttonsPerRow;
-        buttonX = row * (BUTTON_BASE_SIZE + 4) + calculateButtonHorizontalOffset(buttonIndex) + 6 + VERTICAL_OFFSET;
-        buttonY = col * 17 + (calculatorMode == 0 ? -13 : 0) + *(int*)(&BUTTON_COLUMN_CONFIG + calculatorMode * 4);
+        buttonX = row * (BUTTON_BASE_SIZE + 4) +
+            calculateButtonHorizontalOffset(buttonIndex) + 6 + VERTICAL_OFFSET;
+        buttonY = col * 17 + (calcState.mode == 0 ? -13 : 0) +
+            *(int*)(&BUTTON_COLUMN_CONFIG + calcState.mode * 4);
     }
     else {
         // Special buttons
         buttonWidth = (BUTTON_BASE_SIZE * 4) / 3 + 1;
-        buttonX = clientRect.right - ((totalButtons - visibleButtonCount) - 3) * (buttonWidth + 4) - (calculatorMode == 0 ? 1 : 0) - 7;
+        buttonX = clientRect.right - ((totalButtons - visibleButtonCount) - 3) * (buttonWidth + 4)
+            - (calcState.mode == 0 ? 1 : 0) - 7;
         if (visibleButtonCount == 0x53) {
-            buttonX -= (calculatorMode == 0 ? 2 : 1);
+            buttonX -= (calcState.mode == 0 ? 2 : 1);
         }
-        buttonY = (calculatorMode == 0 ? -12 : 0) + *(int*)(&BUTTON_ROW_CONFIG + calculatorMode * 4);
+        buttonY = (calcState.mode == 0 ? -12 : 0) +
+            *(int*)(&BUTTON_ROW_CONFIG + calcState.mode * 4);
     }
 
     buttonRect.left = buttonX;
@@ -1912,13 +1926,14 @@ void updateButtonState(uint buttonId, int state)
     }
 
     // Draw button text
-    const char* buttonText = (&lpString)[buttonIndex];
+    const char* buttonText = (&lpString_0040b4a0)[buttonIndex];
     int textLength = lstrlenA(buttonText);
 
-    if (isHighContrastMode) { // High contrast mode
+    if (calcState.isHighContrastMode) { // High contrast mode
         COLORREF textColor = GetSysColor(COLOR_BTNTEXT);
         COLORREF backgroundColor = GetSysColor(COLOR_BTNFACE);
-        SetTextColor(deviceContext, getElementColor(buttonIndex, backgroundColor, textColor));
+        uVar5 = getElementColor(buttonIndex, backgroundColor, textColor);
+        SetTextColor(deviceContext, uVar5);
     }
 
     SetBkMode(deviceContext, TRANSPARENT);
@@ -1927,6 +1942,8 @@ void updateButtonState(uint buttonId, int state)
     int textX = (buttonWidth + (buttonX * 2 - textSize.cx)) / 2;
     int textY = ((buttonY + 3) * BUTTON_SCALING_FACTOR * 2 + 15) >> 4;
     TextOutA(deviceContext, textX, textY, buttonText, textLength);
+
+    ReleaseDC(calcState.windowHandle, deviceContext);
 }
 
 void updateDecimalSeparator()

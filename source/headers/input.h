@@ -17,6 +17,11 @@
 #undef _UNICODE
 
 #include <windows.h>
+#include ".//headers//main.h"
+#include "operations.h"
+#include <float.h>
+#include <math.h>
+#include <limits.h>
 
 
 extern const short int MAX_DIGITS_FOR_BASE[];

@@ -15,11 +15,12 @@
 
 #pragma once
 
-#include "main.h"
+#include ".//headers//main.h"
 
 void intToExtendedFloat80(LONGLONG value);
-bool isValueOverflowExtended(void);
-void shiftMultiWordInteger(uint* highWord, int shiftAmount);
+BOOL isValueOverflow(int digit);
+BOOL isValueOverflowExtended(void);
+void shiftMultiWordInteger(DWORD* highWord, int shiftAmount);
 void stringToExtendedFloat80(const char* str);
 
 
