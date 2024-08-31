@@ -38,6 +38,9 @@ _environmentVariables envVariables = {
     .count = 0
 };
 
+//Calculator layout offset
+int VERTICAL_OFFSET = 0;
+
 //This array is essential for categorizing individual characters(bytes) based on their properties within different code pages.Each byte of this array represents a character code(0 - 255).You will use bit flags to indicate the character's properties. For example:
 // - Bit 0: Numeric digit(0 - 9)
 // - Bit 1 : Uppercase letter(A - Z)
@@ -252,23 +255,54 @@ void adjustMemoryAllocation(void) {
     }
 }
 
+
 /*
- * initCalcState()
+ * calcWindowProc()
  *
- * This function initializes the calculator's state, setting up all initial values
- * for the calculator parameters. It should be called once at the start of the application.
+ * Purpose:
+ *     Main window procedure for the calculator application. This function
+ *     handles all messages sent to the main calculator window. It
+ *     interacts with other modules to process user input, perform
+ *     calculations, update the display, and manage the calculator's state.
  *
- * The function performs the following tasks:
- * 1. Initializes string constants (class name, registry key, mode text)
- * 2. Sets the default help file path
- * 3. Initializes numeric values (precision, error codes, button states, etc.)
- * 4. Sets up the initial calculator mode
- * 5. Clears memory registers and error states
- * 6. Sets the default decimal separator
- * 7. Updates the decimal separator based on system settings
+ * Parameters:
+ *     hWnd:      Handle to the calculator window.
+ *     uMsg:     The message identifier.
+ *     wParam:   Additional message-specific information.
+ *     lParam:   Additional message-specific information.
  *
- * @param None
- * @return None
+ * Return Value:
+ *     LRESULT: The result of the message processing. The value depends on the
+ *              specific message being processed.
+ *
+ * Remarks:
+ *     This function is the central message handler for the calculator
+ *     application. It handles a wide range of messages, including:
+ *
+ *     - WM_ACTIVATE: Shows or hides the scientific mode window when the
+ *                     main window is activated or deactivated.
+ *     - WM_DESTROY: Performs cleanup tasks, including closing the help window,
+ *                    and posts the WM_QUIT message to end the application.
+ *     - WM_SYSCOLORCHANGE:  Handles system color changes, potentially updating
+ *                             the calculator's color scheme.
+ *     - WM_PAINT:  Redraws the calculator interface, including buttons and
+ *                  display, and updates the display with the current value or result.
+ *     - WM_CLOSE: Destroys the main calculator window, triggering the WM_DESTROY
+ *                  message.
+ *     - WM_HELP:   Provides context-sensitive help using the WinHelp API.
+ *     - WM_COMMAND: Processes commands from the menu and buttons.
+ *     - WM_INITMENUPOPUP: Enables or disables the Paste menu item based on
+ *                         the availability of text data in the clipboard.
+ *     - WM_CTLCOLORSTATIC: Sets the colors for static text controls.
+ *     - WM_MOUSEMOVE: Handles mouse movement over buttons, providing visual feedback
+ *                      (button highlighting) to the user.
+ *     - WM_LBUTTONDOWN: Handles left mouse button clicks on buttons, capturing the mouse
+ *                        and setting the button state to "pressed."
+ *     - WM_LBUTTONUP: Handles left mouse button releases, releasing the mouse capture
+ *                      and setting the button state to "normal." It also processes
+ *                      the button click if the mouse is released over the same button.
+ *     - Default:  For unhandled messages, calls the default window procedure
+ *                (DefWindowProcA).
  */
 LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -373,8 +407,8 @@ LRESULT CALLBACK calcWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         {
             for (int i = 0; i < 0x3d; i++)
             {
-                if ((elementStateTable[i] >> 8 & 0xff) == cmdID &&
-                    (elementStateTable[i] & 3) != calcState.mode)
+                if ((windowStateTable[i] >> 8 & 0xff) == cmdID &&
+                    (windowStateTable[i] & 3) != calcState.mode)
                 {
                     updateButtonState(cmdID, 100);
                     break;
@@ -758,7 +792,6 @@ void initColors(int forceUpdate) {
     const char* currentModeText = calcState.modeText[calcState.mode];
     int modeTextID;
     int totalWidth; //Total width of the calculator 
-    int VERTICAL_OFFSET = 0;
     int BUTTON_BASE_SIZE = 0;
 
     // Determine background color based on calculator display mode

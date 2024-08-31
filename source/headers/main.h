@@ -423,6 +423,7 @@ void resetCalculatorState(void);
 void toggleScientificMode(void);
 BOOL CALLBACK statisticsWindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK scientificDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+int WINAPI WinMain(HINSTANCE appInstance, HINSTANCE unused, LPSTR commandLine, int windowMode);
 void updateButtonState(uint buttonID, int state);
 void updateDecimalSeparator();
 void updateDisplay(void);
