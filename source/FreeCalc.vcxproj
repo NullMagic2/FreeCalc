@@ -131,6 +131,7 @@
   <ItemGroup>
     <ClCompile Include="input.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="memory.c" />
     <ClCompile Include="operations.c" />
   </ItemGroup>
   <ItemGroup>
@@ -141,6 +142,7 @@
     <Image Include="FreeCalc.ico" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="headers\memory.h" />
     <ClInclude Include="input.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="operations.h" />

@@ -15,7 +15,20 @@
 
 #pragma once
 
-#include ".//headers//main.h"
+#include "..//headers//main.h"
+
+
+ // Maximum allocation size from the heap, likely related to limitations of 
+ // the custom memory manager.  This leaves a 4KB "safety margin" below the 4GB address space limit.
+#define MAX_HEAP_ALLOCATION_SIZE 0xFFFFD001
+
+// Mask to align memory addresses to 4-byte boundaries.  Used for both 
+// signed and unsigned values. 
+#define ALIGNMENT_MASK 0xFFFFFFFC
+
+// Unsigned version of the alignment mask (though it doesn't affect the bit pattern).
+#define ALIGNMENT_MASK_UNSIGNED 0xFFFFFFFCU
+
 
 void intToExtendedFloat80(LONGLONG value);
 BOOL isValueOverflow(int digit);

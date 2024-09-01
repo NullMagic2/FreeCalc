@@ -20,7 +20,8 @@
 
   -----------------------------------------------------------------------------*/
 
-#include ".//headers//main.h"
+#include "..//headers//main.h"
+#include "..//headers//memory.h"
 
 _calculatorWindows calcWindows = {
     .main = NULL,
@@ -1210,7 +1211,7 @@ DWORD getCalculatorButton(ushort mouseX, ushort mouseY)
                 BOOL rowFound = FALSE;
 
                 while (row < (calcState.mode == SCIENTIFIC_MODE ? SCIENTIFIC_CALC_ROWS : STANDARD_CALC_ROWS) && !rowFound) {
-                    horizontalPosition = adjustButtonHorizontalPosition(horizontalPosition, row, 0);
+   
                     if (mouseX >= horizontalPosition + verticalPosition &&
                         mouseX <= horizontalPosition + verticalPosition + BUTTON_BASE_SIZE) {
                         rowFound = TRUE;
